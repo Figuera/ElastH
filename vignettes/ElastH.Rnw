@@ -1,0 +1,583 @@
+\documentclass[11pt,a4paper,oneside]{report}
+%\VignetteIndexEntry{Tutorial}
+\usepackage{authblk}
+\usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\begin{document}
+\title{Passo a passo de como estimar elasticidades de grupos de receita usando
+  o pacote ElastH}
+\author[1]{Caio Figueiredo}
+\affil[1]{Secretaria de Política Econômica do Ministério da Fazenda} 
+\maketitle
+\tableofcontents
+
+<<options, echo=FALSE>>=
+options(width=70, max.print=50)
+@
+
+\section*{Introdução}
+
+O pacote ElastH foi desenvolvido com a intenção de disponibilizar método
+de cálculo de elasticidades de grupos de receitas conforme descrito na
+metodologia de cálculo do Resultado Fiscal Estrutural da Secretaria de Política
+Econômica do Ministério da Fazenda - SPE/MF.
+
+O pacote permite a estimação de diversos modelos de componentes não observados
+de maneira simples, sem exigir conhecimentos mais profundos do funcionamento do
+Filtro de Kalman. Adicionalmente são disponibilizados testes e critérios que
+permitam a avaliação do modelo estimado.
+
+Este tutorial parte do pressuposto de que o leitor já tem conhecimento 
+básico sobre o funcionamento do software estatístico R, que consiga importar e
+exportar dados bem como criar variáveis. Também é recomendável que se saiba trabalhar
+com séries de tempo.
+
+\section*{Estrutura do Modelo de Componentes não Observados}
+
+Apesar de não ser necessário ter conhecimento profundo sobre os modelos de componentes
+não observados, ou sobre o filtro de Kalman, é interessante uma breve introdução
+do modelo que é utilizado pela metodologia da SPE:\footnote{Modelos de componentes não
+observados podem assumir formas mais abrangentes, que poderiam ser aplicados utilizando
+as funções deste pacote. Porém, o tutorial se atém ao modelo utilizado pela metodologia de SPE.}
+
+\[y_t = \mu_t + \beta_t \cdot{X_t} + \gamma_t + \varepsilon_t\]
+\[\mu_t = \mu_{t-1} + \nu_{t-1} + \xi_t\]
+\[\nu_t = \nu_{t-1} + \zeta_t\]
+\[\gamma_t = \gamma_{1,t} + \gamma_{2,}\]
+\[\gamma_{1,t} = - \gamma_{1,t-2} + \omega_{1,t}\]
+\[\gamma_{2,t} = - \gamma_{2,t-1} + \omega_{2,t}\]
+\[\beta_t = \beta_{t-1} + \eta_t\]
+onde \(y_t\) é a série de tempo a ser decomposta e \(X_t\)
+um grupo de variáveis explicativas. No caso de
+interesse, \(y_t\) é uma das séries de grupos de receitas definidas na metodologia e
+\(X_t\) é o Hiato do Produto ou o Hiato do Petróleo\footnote{Como destacado na
+metodologia de calculo do Resultado Fiscal Estrutural da SPE, apesar de utilizarmos durante
+o tutorial os nomes Hiato de Produto e Hiato de Petróleo, isto não é estritamente 
+correto. Na verdade o que é utilizado é \(\ln(Y/Y^*)\) e \(\ln(Pet/Pet^*)\) onde \(Y\), 
+\(Y^*\), \(Pet\), \(Pet^*\) são respectivamente, o PIB efetivo, o PIB tendecial, o preço de petróleo
+efetivo e o preço de petróleo tendencial.}. Já \(\mu_t\), \(\nu_t\), \(\gamma_t\) e
+\(\beta_t\) são os componentes não observados estimados pelo Filtro de Kalman, 
+respectivamente, nível, inclinação, sazonalidade e coeficiente(s).
+
+Os choques destas equações seguem as seguintes distribuições: 
+
+\[\varepsilon_t \sim \mathcal{N}(0, \sigma^2_\varepsilon)\]
+\[\xi_t \sim \mathcal{N}(0, \sigma^2_\xi)\]
+\[\zeta_t \sim \mathcal{N}(0, \sigma^2_\zeta)\]
+\[\omega_{1,t} \sim \mathcal{N}(0, 2\sigma^2_\omega)\]
+\[\omega_{2,t} \sim \mathcal{N}(0, \sigma^2_\omega)\]
+\[\eta_t \sim \mathcal{N}(0, \sigma^2_\eta)\]
+
+Algumas hipóteses podem ser feitas sobre o comportamento dos componentes, que
+podem, por exemplo, ser estocásticos (padrão) ou fixos\footnote{Outra possibilidade
+é que os componentes sejam ignorados, ou seja, excluídos do modelo. Nesta metodologia,
+porém, apenas o componente sazonal é ignorado, e somente com as receitas de petróleo
+(Royalties e Participação Especial).}.
+Um componente estocástico segue a estrutura de um passeio aleatório, e tem a variância
+de seu choque estimada pelo pacote. Um componente fixo apresentará o mesmo valor
+em todos os períodos, ou seja, tem a variância de seu choque determinada e igual a 0.
+
+Este pacote, então, se propõe a estimar os componentes sob diferentes hipóteses
+e prover as ferramentas de testes que permitam comparar os modelos, subsidiando a
+escolha da melhor forma funcional sob a qual as elasticidades desvem ser estimadas. 
+
+\section*{Instalação e Carregamento}
+
+Para instalar o pacote de estimação de elasticidades da SPE/MF, é necessário
+estar conectado à internet e digitar o seguinte comando no console do R:
+
+<<Instalar, eval=FALSE>>=
+install.packages("ElastH")
+@
+
+Alternativamente é possível baixar o pacote no site da SPE\footnote{
+  \url{http://www.spe.fazenda.gov.br/assuntos/politica-fiscal-e-tributaria/resultado-fiscal-estrutural}},
+e utilizar o seguinte comando para instalar:
+
+<<Instalar, eval=FALSE>>=
+install.packages("Caminho/ElastH_0.3.1.tar.gz", repos=NULL, type="source")
+@
+
+Por favor note que para separar os diretórios é necessário utiliza a barra
+padrão "\(/\)", ainda que sistemas windows tradicionamente exibam seu endereços
+utilizando a barra invertida "\(\backslash\)", pois a barra invertida é um caractere
+especial no software estatístico R. Outra alternativa seria utilizar
+barras invertidas duplas "\(\backslash\backslash\)".
+
+Para carregar o pacote no ambiente padrão do R é necessário chamar o seguinte
+comando no início de toda sessão.
+
+<<carregar>>=
+library(ElastH)
+@
+
+\section*{Estrutura dos dados de entrada}
+
+O primeiro passo para estimar as elasticidades é importar as séries de
+receitas para o R. Para fins deste tutorial, será usada uma série fictícia de exemplo
+disponibilizada neste pacote. Para ter acesso a ela, basta digitar o seguinte
+comando no console do R:
+
+<<data>>=
+data(Exemplo)
+@
+
+Assim, a variável \texttt{Exemplo} estará disponível. Esta variável
+consiste em uma lista fictícia de dados de interesse, incluindo séries de tempo
+similares (mas não iguais) aos grupos de receitas de interesse\footnote{É importante
+destacar que para a estimação das elasticidades é utilizado a série das receitas em log.}.
+Para visualizá-las, digite: 
+
+<<Exemplo.y>>=
+Exemplo$y
+Exemplo$Hpib
+@
+
+\section*{Funções do ElastH}
+
+O pacote disponibiliza quatro funções públicas que serão explanadas em suas
+respectivas seções, a saber:
+
+\begin{enumerate}
+  \item decompor
+  \item decompor.todos
+  \item calcular.elasticidades
+  \item exportar
+\end{enumerate}
+
+\section*{decompor - Estimando um modelo de componentes não observados}
+
+Para estimar os componentes não observados, é necessário utilizar a função
+\texttt{decompor}. Em sua forma mais simples, é preciso informar, como argumento,
+a série de tempo a ser usada como variável a ser decomposta:
+
+<<define.decompor1, echo=FALSE>>=
+modelo <- Exemplo$modelo
+@
+<<decompor1, eval=FALSE>>=
+modelo <- decompor(Exemplo$y)
+@
+
+É importante destacar que, para funcionar corretamente, a
+variável a ser decomposta seja uma série de tempo, ou seja de classe "ts":
+
+<<classExemplo>>=
+class(Exemplo$y)
+@
+
+A função retorna uma longa lista de variáveis, e que agora
+está salva sob o nome de \texttt{modelo}. Uma das variáveis desta lista é a
+\texttt{comp}, que exibe o valor estimado para todos os componentes. Para
+visualizá-la, digite\footnote{Os resultados exibidos abaixo podem apresentar
+pequena variação a depender da versão do software R e da
+arquitetura (32/64 bits) do computador utilizado}:
+
+<<modelo1>>=
+modelo$comp
+@
+
+Entre as diversas outras variáveis retornadas (vide \texttt{str(modelo)} para
+uma lista completa), destacam-se: os testes de independência de resíduos
+(variável \texttt{q}), o teste de homocedasticidade (variável \texttt{h}) e
+teste de normalidade dos resíduos (variável \texttt{nt}). Para visualizá-los,
+utilize:
+
+<<testes>>=
+modelo$q
+modelo$h
+modelo$nt
+@
+
+Os valores críticos são calculados a um nível de significância de 5\%. Para mais
+informações sobre os resultados retornados por \texttt{decompor}, leia a página
+de ajuda dessa função com: \texttt{help(decompor)}.
+
+\subsection*{Inclusão de variáveis explicativas}
+
+Para incluir variáveis explicativas, basta definir o argumento \texttt{X}:
+
+<<define.decompor2, echo=FALSE>>=
+modelo <- Exemplo$modelo2
+@
+<<decompor2, eval=FALSE>>=
+modelo <- decompor(Exemplo$y, X=Exemplo$Hpib)
+@
+<<decompor2.print>>=
+modelo$comp
+@
+
+Note que agora temos um componente\footnote{O termo componente é utilizado neste
+trabalho de forma abrangente, de modo que tanto a sazonalidade, que na realidade
+é a combinação de três variáveis de estado, como visto anteriormente, quanto o
+coeficiente que é apenas parte daquilo que afeta a equação principal são tratados
+como "componentes".} a mais: o coeficiente da variável
+explicativa, que, no caso particular deste pacote, representa a elasticidade de
+um grupo de receita ante o Hiato do PIB e é aproximadamente igual a \texttt{0.40}.
+
+\subsection*{Controle de comportamento dos componentes}
+
+Para controlar as hipóteses sobre os componentes, utilizamos
+os argumentos \texttt{nivel}, \texttt{inclinacao}, \texttt{sazon} e \texttt{regres},
+que controlam, respectivamente, os componentes de: nível, inclinação,
+sazonalidade e coeficientes. Os argumentos podem ser definidos como "S", para
+componentes estocásticos (padrão), "F" para componentes fixos\footnote{Além de "N" para
+componentes ignorados.}. Por exemplo, para fixar a inclinação, mantendo os outros 
+parâmetros estocásticos, digite: 
+
+<<definir.criardlm3, echo=FALSE>>=
+modelo <- Exemplo$modelo3
+@
+<<decompor3.noteval, eval=FALSE>>=
+modelo <- decompor(Exemplo$y, X=Exemplo$Hpib, inclinacao="F")
+@
+<<decompor3.print>>=
+modelo$comp
+@
+
+Perceba que, agora, o componente de inclinação apresenta o mesmo valor em
+todos os períodos. Para consultar informações, vide: \texttt{help(decompor)}.
+
+\subsection*{Definição de período de análise}
+
+Por fim, é possível restringir o escopo do modelo definindo o período de início e
+fim da análise. Isso é especialmente útil no caso de interesse,
+pois algumas receitas têm quebras estruturais importantes em suas
+elasticidades, sendo interessante, então, resumir o escopo da estimação somente ao
+período mais recente. Para isso utilize os parâmetros \texttt{comeco} e \texttt{fim}:
+\footnote{Cabe destacar que os valores da variável começo e fim devem ter a seguinte
+entrutura: \texttt{c(Ano,Trimestre)}. Alternativamente é possivel definir apenas o
+\texttt{ano}, caso em que será utilizado o primeiro trimestre daquele Ano como
+parâmetro.}
+
+<<decompor4, eval=FALSE>>=
+modelo <- decompor(Exemplo$y, X=Exemplo$Hpib, comeco=2007, 
+                    fim=c(2014,4))
+@
+
+\section*{decompor.todos - Testando os componentes}
+
+Considerando as várias possíveis hipóteses sobre o comportamento dos
+componentes, faz-se necessário testar quais destas hipóteses se encaixam melhor
+no grupo de receita em questão. A fim de facilitar a estimação
+de diversos modelos e possibilitar a sua comparação, é possível usar a função
+\texttt{decompor.todos}. A função estimará os componentes não observados para oito
+conjuntos de hipóteses diferentes.\footnote{As hipóteses são as oito diferentes
+  combinações de componentes fixos ou estocásticos para: nível, inclinação e
+  sazonalidade.} Para utilizar esta função, basta digitar o seguinte comando:
+
+<<decompor.todos, eval=FALSE>>=
+lista.dlm <- decompor.todos(Exemplo$y, X=Exemplo$Hpib, 
+                        comeco=2005, fim=c(2014,4))
+@
+
+Para visualizar a estrutura do resultado digite:
+<<tdlms.str, eval=FALSE>>=
+str(lista.dlm,1)
+@
+<<tdlms.str.print, echo=FALSE>>=
+str(Exemplo$lista.y,1)
+@
+
+Perceba que a função retorna uma lista com oito modelos estimados, e, para cada um
+deles, uma elasticidade é estimada e pode ser acessada pela mesma variável
+\texttt{comp}. Para visualizar os componentes estimados de um desses oito modelos,
+digite:
+
+<<tdlms.comp, eval=FALSE>>=
+lista.dlm[[1]]$comp
+@
+<<tdlms.comp.print, echo=FALSE>>=
+Exemplo$lista.y[[1]]$comp
+@
+
+Note também que cada um dos modelos estimados é de mesma classe, e tem as mesmas
+variáveis que os modelos estimados pela função \texttt{decompor}.
+
+<<classeigual, eval=FALSE>>=
+class(lista.dlm[[1]]) == class(modelo)
+@
+<<classeigual.print, echo=FALSE>>=
+class(Exemplo$lista.y[[1]]) == class(modelo)
+@
+
+Para mais informações, vide \texttt{help(decompor.todos)}.
+
+\section*{calcular.elasticidades - Estimação em série}
+
+Caso se tenha em mãos todas as séries de grupo de receita de
+interesse para o cálculo do resultado estrutural, é possível usar a função
+\texttt{calcular.elasticidades} para calcular todos os modelos de uma
+única vez. A função retornará os oito
+conjuntos de hipóteses diferentes para cada grupo de receita (do mesmo modo que
+\texttt{decompor.todos}). Ainda restará ao analista a escolha de qual conjunto de
+hipóteses apresenta os melhores testes e resultados.  
+
+Para utilizar essa função, digite:
+
+<<elasticidade, eval=FALSE>>=
+resultado <- calcular.elasticidades(Exemplo$receitas, 
+             Hpib=Exemplo$Hpib, Hpet=Exemplo$Hpet, fim=c(2015,4))
+@
+  
+Não estranhe se demorar para se ter resultados. Devido a grande gama de
+modelos estimados, este comando pode demorar vários minutos para completar.
+
+Perceba que é necessário informar o argumento fim, embora o começo da
+série seja definido automaticamente\footnote{A função sempre assumirá como período inicial
+aqueles utilizados pela metodologia da SPE/MF.}. Também é necessário informar os dois tipos
+de variáveis explicativas: \texttt{Hpib}, a série de Hiato do PIB; e \texttt{Hpet}, a série de
+Hiato de Petróleo, a função usará cada série quando for conveniente. Além destas,
+é possível definir a variável \texttt{tce}, taxa de cambio efetiva, que será
+utilizada como variável de controle na estimação da elasticidade das receitas
+de importação. Caso esta variável não seja definida, como no caso acima,
+o processo controle é ignorado.
+
+É muito importante observar a estrutura da variável receitas, que precisa ter um
+formato específico para este comando funcionar. A mesma deve ser uma tabela de 
+dados, com propriedades de série de tempo, e conter todos os grupos de receitas para
+os quais se deseja calcular as elasticidades. Além disso, cada coluna da tabela precisa conter
+o nome que identifica aquele grupo de receita. Ou seja, um dos seguintes: TRT, TFP,
+TRC, TI, TM, TGC, ROY, PE, TRAN, ICMS, ISS\footnote{Respectivamente: Tributos 
+sobre Renda do Trabalho, Tributos sobre Folha de Pagamento, Tributos sobre Renda
+Corporativa, Tributos Indiretos, Tributos de Importação, Tributos sobre Ganho
+de Capital, Royalties de Petróleo, Participação Especial de Petróleo, Imposto
+sobre Circulação de Mercadorias e Serviços, Imposto sobre Serviços. Como 
+definidos na metodologia de SPE/MF.}.
+Observe a estrutura da variável usada no exemplo:
+
+<<exemplo>>=
+Exemplo$receitas
+@
+
+Por fim, a estrutura do resultado:
+
+<<define.resultado, echo=FALSE>>=
+resultado <- Exemplo$resultado
+@
+
+<<resultado.print>>=
+str(resultado,1)
+@
+
+Como se vê, o resultado é uma longa lista com todos os dados estimados, sendo que para
+cada grupo de receita são estimado 24 modelos, oito\footnote{Exceção de ROY e PE para quem são estimados
+apenas quatro modelos, já que o componente de sazonalidade é ignorado.} para cada um dos
+três casos seguintes: Grupo de Receita contra Hiato, contra Hiato com lag e
+contra Hiato e Hiato com lag. Para acessar um resultado específico, digite:
+
+<<resultado.trt4>>=
+resultado$trt[[4]]$comp
+@
+
+<<resultado.tgc7>>=
+resultado$tgc[[7]]$comp
+@
+
+\section*{exportar - Exportando resultados}
+
+O resultado final da função
+\texttt{calcular.elasticidades} é de complexa interpretação. Para facilitar a
+compreensão deste resultado, pode-se usar a função \texttt{exportar}. Esta
+função resume os resultados da função \texttt{calcular.elasticidades} aos
+valores mais importantes de modo a facilitar o acesso: 
+
+%<<exportarcao.def, echo=FALSE>>=
+%resultado.exportacao <- Exemplo$exportacao
+%@
+<<exportarcao.show, eval=FALSE>>=
+resultado.exportacao <- exportar(resultado)
+@
+%<<exportacao.print>>=
+%resultado.exportacao
+%@
+
+O resultado é uma grande tabela detalhando os resultados, com 28 colunas:
+
+\begin{enumerate}
+\item As Colunas 3, 7, 10, 13, 17, 22, 25 estão vazias para facilitar leitura em
+ caso de exportação.
+\item A Coluna 1 descreve o modelo que foi estimado.
+\item A Coluna 2 descreve o período de estimação.
+\item As Colunas 4, 5 e 6 descrevem as hipóteses feitas para os componentes, em que S indica
+comportamento estocástico e F indica comportamento fixo.
+\item As Colunas 8 e 9 indicam o valor médio dos coeficentes.
+\item As Colunas 11 e 12 indicam os p-valores dos testes t de cada coeficiente. O teste t é
+realizado apenas no último período.
+\item As Colunas 14 e 15 indicam os p-valores dos testes de correlação serial dos erros
+de predição.
+\item A Coluna 16 diz quantos lags foram usados para realizar o teste da Coluna 14. Já
+o teste da Coluna 15 utiliza 2 vezes esse valor.
+\item As Colunas 18 e 19 indicam, respectivamente, os p-valores dos testes de
+  homocedasticidade e normalidade.
+\item As Colunas 20 e 21 são os critérios de informação de Akaike (AIC) e bayesiano (BIC).
+\item As Colunas 23 e 24 indicam os desvios padrão dos choques da equação do
+coeficiente. Quanto menor esse valor mais estável é a elasticidade ao longo do tempo.
+\item A Coluna 26 detalha as intervenções utilizadas.
+\item As Colunas 27 e 28 indicam, de forma similar às colunas 8 e 9, os valores dos coeficientes
+no último período. Se a elasticidade é constante (colunas 23 ou 24 igual a 0), essas colunas
+são numericamente iguais às coluna 8 e 9.
+\end{enumerate}
+
+A fim de facilitar a análise dos resultados, recomenda-se salvar a tabela gerada em CSV,
+e abrí-la em Excel, o que pode ser feito com o seguinte comando\footnote{O ``2'' em
+\texttt{write.csv2} força a utilização do padrão CSV europeu, ou seja vírgulas
+separam decimais, pontos separam milhares e pontos e virgulas separam colunas, que é
+padrão mais comum no Brasil. Porém, se o leitor desejar utilizar o padrão americano é possível
+omitir o ``2'', e usar apenas \texttt{write.csv}.}
+
+<<salvando, eval=FALSE>>=
+write.csv2(resultado.exportacao, file="Caminho/Desejado/Nome.csv")
+@
+
+\section*{Script}
+
+Alternativamente à função \texttt{calcular.elasticidades}, é possível baixar no site da SPE/MF
+arquivo de script R que auxilia a estimação das elasticidades. O script é,
+em grande parte, o código-fonte da função \texttt{calcular.elasticidades} e faz-se útil
+para estimar subconjuntos do total de modelos possíveis, evitando estimações desnecessárias.
+Uma vez que estas podem ter alto custo computacional e demorar vários minutos para serem interpretadas,
+e para adicionar flexibilidade caso se deseje alterar os períodos inicais de estimação.
+
+Segue o Script:
+
+<<Script, eval=FALSE>>=
+arquivo   <- "elasticidades.csv"
+Receitas  <- NULL
+Hpib      <- NULL
+Hpet      <- NULL
+fim       <- c(2016,4)
+tce     <- NULL
+comeco <- list(
+  trt  = 2000,
+  tfp  = 1997,
+  trc  = 1997,
+  ti   = 2001,
+  tm   = 2005,
+  tgc  = 2005,
+  roy  = 2000,
+  pe   = 2000,
+  tran = 2002,
+  icms = 1997,
+  iss  = 2002)
+
+
+resultado <- list(
+  trt  = decompor.todos(Receitas[, "TRT"] , X = Hpib,
+                    comeco = comeco$trt , fim = fim),
+  trt1 = decompor.todos(Receitas[, "TRT"] , X = lag(Hpib,-1),
+                    comeco = comeco$trt , fim = fim),
+  trt2 = decompor.todos(Receitas[, "TRT"] , X = cbind(Hpib, lag(Hpib, -1)),
+                    comeco = comeco$trt , fim = fim),
+  
+  tfp  = decompor.todos(Receitas[, "TFP"] , X = Hpib,
+                    comeco = comeco$tfp , fim = fim),
+  tfp1 = decompor.todos(Receitas[, "TFP"] , X = lag(Hpib,-1),
+                    comeco = comeco$tfp , fim = fim),
+  tfp2 = decompor.todos(Receitas[, "TFP"] , X = cbind(Hpib, lag(Hpib, -1)),
+                    comeco = comeco$tfp , fim = fim),
+
+  trc  = decompor.todos(Receitas[, "TRC"] , X = Hpib,
+                    comeco = comeco$trc , fim = fim),
+  trc1 = decompor.todos(Receitas[, "TRC"] , X = lag(Hpib,-1),
+                    comeco = comeco$trc , fim = fim),
+  trc2 = decompor.todos(Receitas[, "TRC"] , X = cbind(Hpib, lag(Hpib, -1)),
+                    comeco = comeco$trc , fim = fim),
+
+  ti   = decompor.todos(Receitas[, "TI"]  , X = Hpib,
+                    comeco = comeco$ti  , fim = fim),
+  ti1  = decompor.todos(Receitas[, "TI"]  , X = lag(Hpib,-1),
+                    comeco = comeco$ti  , fim = fim),
+  ti2  = decompor.todos(Receitas[, "TI"]  , X = cbind(Hpib, lag(Hpib, -1)),
+                    comeco = comeco$ti  , fim = fim),
+
+  tm   = decompor.todos(Receitas[, "TM"]  , X = cbind(Hpib, log(tce)),
+                    comeco = comeco$tm, fim = fim),
+  tm1  = decompor.todos(Receitas[, "TM"]  , X = cbind(lag(Hpib,-1), log(tce)),
+                    comeco = comeco$tm, fim = fim),
+  tm2  = decompor.todos(Receitas[, "TM"], 
+                    X = cbind(Hpib, lag(Hpib, -1), log(tce)),
+                    comeco = comeco$tm, fim = fim),
+
+  tgc  = decompor.todos(Receitas[, "TGC"] , X = Hpib,
+                    comeco = comeco$tgc , fim = fim),
+  tgc1 = decompor.todos(Receitas[, "TGC"] , X = lag(Hpib, -1),
+                    comeco = comeco$tgc , fim = fim),
+  tgc2 = decompor.todos(Receitas[, "TGC"] , X = cbind(Hpib, lag(Hpib, -1)),
+                    comeco = comeco$tgc , fim = fim),
+
+  roy  = decompor.todos(Receitas[, "ROY"] , X = Hpet,
+                    comeco = comeco$roy , fim = fim),
+  roy1 = decompor.todos(Receitas[, "ROY"] , X = lag(Hpet, -1),
+                    comeco = comeco$roy , fim = fim),
+  roy2 = decompor.todos(Receitas[, "ROY"] , X = cbind(Hpet, lag(Hpet, -1)),
+                    comeco = comeco$roy , fim = fim),
+  
+  pe   = decompor.todos(Receitas[, "PE"]  , X = Hpet,
+                    comeco = comeco$pe  , fim = fim),
+  pe1  = decompor.todos(Receitas[, "PE"]  , X = lag(Hpet, -1),
+                    comeco = comeco$pe  , fim = fim),
+  pe2  = decompor.todos(Receitas[, "PE"]  , X = cbind(Hpet, lag(Hpet, -1)),
+                    comeco = comeco$pe  , fim = fim),
+
+  tran = decompor.todos(Receitas[, "TRAN"], X = Hpib,
+                    comeco = comeco$tran, fim = fim),
+  tran1= decompor.todos(Receitas[, "TRAN"], X = lag(Hpib, -1),
+                    comeco = comeco$tran, fim = fim),
+  tran2= decompor.todos(Receitas[, "TRAN"], X = cbind(Hpib, lag(Hpib, -1)),
+                    comeco = comeco$tran, fim = fim),
+
+  icms = decompor.todos(Receitas[, "ICMS"], X = Hpib,
+                    comeco = comeco$icms, fim = fim),
+  icms1= decompor.todos(Receitas[, "ICMS"], X = lag(Hpib,-1),
+                    comeco = comeco$icms, fim = fim),
+  icms2= decompor.todos(Receitas[, "ICMS"], X = cbind(Hpib, lag(Hpib, -1)),
+                    comeco = comeco$icms, fim = fim),
+
+  iss  = decompor.todos(Receitas[, "ISS"] , X = Hpib,
+                    comeco = comeco$iss , fim = fim),
+  iss1 = decompor.todos(Receitas[, "ISS"] , X = lag(Hpib, -1),
+                    comeco = comeco$iss , fim = fim),
+  iss2 = decompor.todos(Receitas[, "ISS"] , X = cbind(Hpib, lag(Hpib, -1)),
+                    comeco = comeco$iss , fim = fim)
+)
+
+ret <- exportar(resultado)
+write.csv2(ret, file=arquivo)
+@
+
+No arquivo desponibilizado, ainda existem comentários explicando diversos trechos
+que foram omitidos das linhas acima por questões de simplicidade.
+
+Para se utilizar o script, é imprescindível que se defina as seguintes variáveis:
+\texttt{arquivo}, \texttt{Receitas}, \texttt{Hpib}, \texttt{Hpet}, \texttt{comeco},
+\texttt{fim} e \texttt{tce}. Todas estão localizadas na parte inicial do script e algumas como
+\texttt{comeco} e \texttt{fim} já possuem valores pré-estabelecidos.
+
+A variável \texttt{arquivo} contém o caminho e o nome do arquivo onde serão salvos
+os resultados. As variáveis \texttt{Hpib} e \texttt{Hpet} correspondem, respectivamente,
+às séries de tempo do Hiato do Produto e do Hiato do Petróleo. A variável \texttt{tce}
+define uma taxa de câmbio efetiva\footnote{Foi utilizado, na metodologia da SPE, a série
+11752 do Sistema Gerenciador de Séries Temporais do Banco Central do Brasil.}
+utilizada como variável de controle para estimar a elasticidade das
+receitas de importação, caso não se queira utilizar essa variável. é possível
+defini-la como \texttt{NULL}.
+
+As variáveis \texttt{comeco} e \texttt{fim} definem os períodos
+iniciais e finais de estimação, sendo que a variável \texttt{fim} é vetor ordinário
+que será aplicado a todos os grupos de receita. Já a variável \texttt{comeco}
+é uma lista que define um período inicial de estimação para cada grupo de receita,
+devidamente identificada pela sigla do grupo de receita em questão.
+
+O objeto \texttt{Receitas} deve ser uma tabela com todos os 11 grupos
+de receita utilizados na metodologia da SPE/MF devidamente identificados com as siglas
+de cada um desses grupos, como definidos anteriormente\footnote{Vide seção 
+\texttt{calcular.elasticidades}}. Caso não se queira estimar
+algum dos grupos de receita é possível não incluí-lo na variável, porém, neste caso
+será necessário excluir ou comentar a linha do grupo de receita correspondente do comando
+de criação da variável \texttt{resultado}.
+
+O resultado do script original será idêntico ao resultado da função calcular.elasticidades,
+desde que com os mesmos parâmetros.
+
+\end{document}
