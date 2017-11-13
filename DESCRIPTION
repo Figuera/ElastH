@@ -3,7 +3,7 @@ Type: Package
 Title: Replicar metodologia de SPE/MF para calculo de elasticidade de receita
 Imports: dlm
 Suggests: testthat
-Version: 0.3.1
+Version: 0.3.2
 Date: 2017-05-30
 Authors@R: person("Caio", "Figueiredo", email="caio.figueiredo@fazenda.gov.br", role=c("aut", "cre"))
 Description: O pacote desponibiliza funções para estimar modelos de componentes 

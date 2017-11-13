@@ -44,23 +44,28 @@ choques <- function(kf) {
   DD     <- lapply(1:n, function(t) solve(H[[t]]) + t(K[[t]])%*%N[[t]]%*%K[[t]]) 
   vareps <- lapply(1:n, function(t) jdlm$V[[t]]%*%DD[[t]]%*%jdlm$V[[t]])
 
-
   posc   <- posicoes(kf$mod)$norm
   posc   <- posc[names(posc) %in% c("Nivel", "Inclinacao")]
 
   eps     <- do.call(cbind, lapply(1:nrow(eps[[1]]), function(i) sapply(eps, "[", i, 1)))
   colnames(eps) <- "Choque"
-  eta     <- do.call(cbind, lapply(1:nrow(eta[[1]]), function(i) sapply(eta, "[", i, 1)))[ , posc, drop=F]
-  colnames(eta) <- paste0("C.", names(posc))
-  choques <- cbind(eps, rbind(NA, eta[-nrow(eta), , drop=F]))
-  choques <- ts(choques, start=start(kf$y), frequency=frequency(kf$y))
-
   vareps <- do.call(cbind, lapply(1:nrow(vareps[[1]]), function(i) sapply(vareps, "[", i, i)))
   colnames(vareps) <- "Choque"
-  vareta <- do.call(cbind, lapply(1:nrow(vareta[[1]]), function(i) sapply(vareta, "[", i, i)))[, posc, drop=F]
-  colnames(vareta) <- paste0("C.", names(posc))
-  var <- cbind(vareps, rbind(NA, vareta[-nrow(vareta), , drop=F]))
-  var <- ts(var, start=start(kf$y), frequency=frequency(kf$y))
+
+  if(length(posc) > 0){
+    eta     <- do.call(cbind, lapply(1:nrow(eta[[1]]), function(i) sapply(eta, "[", i, 1)))[ , posc, drop=F]
+    colnames(eta) <- paste0("C.", names(posc))
+    choques <- cbind(eps, rbind(NA, eta[-nrow(eta), , drop=F]))
+    choques <- ts(choques, start=start(kf$y), frequency=frequency(kf$y))
+
+    vareta <- do.call(cbind, lapply(1:nrow(vareta[[1]]), function(i) sapply(vareta, "[", i, i)))[, posc, drop=F]
+    colnames(vareta) <- paste0("C.", names(posc))
+    var <- cbind(vareps, rbind(NA, vareta[-nrow(vareta), , drop=F]))
+    var <- ts(var, start=start(kf$y), frequency=frequency(kf$y))
+  } else {
+    choques <- ts(eps, start=start(kf$y), frequency=frequency(kf$y))
+    var <- ts(vareps, start=start(kf$y), frequency=frequency(kf$y))
+  }
 
   return(list(ch=choques, sd=sqrt(var)))
 }

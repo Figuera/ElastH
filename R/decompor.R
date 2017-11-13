@@ -205,7 +205,7 @@ decompor <-
                             })
 
           if(any(de.novo)) {
-            intx <- cbind(validado, intx[, rejeit.b][, de.novo])
+            intx <- cbind(validado, intx[, rejeit.b, drop=F][, de.novo, drop=F])
             # Aqui termina o loop repeat iniciado acima. Porém não é lançado o break
             # de forma que mais uma interação é realizada.
           } else {
