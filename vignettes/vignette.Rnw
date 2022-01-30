@@ -1,0 +1,376 @@
+\documentclass[11pt,a4paper,oneside]{report}
+%\VignetteIndexEntry{Tutorial}
+\usepackage{authblk}
+\usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+\begin{document}
+\title{Passo a passo de como estimar elasticidades de grupos de receita usando
+  o pacote ElastH}
+\author[1]{Caio Figueiredo}
+\affil[1]{Secretaria de Política Econômica do Ministério da Fazenda do Brasil} 
+\maketitle
+\tableofcontents
+
+<<options, echo=FALSE>>=
+options(width=70, max.print=50)
+@
+
+\section*{Introdução}
+
+O pacote ElastH foi desenvolvido com a intenção de prover uma
+maneira simples de replicar as estimações de elasticidades de grupos de
+receitas, de interesse para a metodologia de cálculo do resultado estrutural da SPE/MF.
+\footnote{\url{http://www.spe.fazenda.gov.br/assuntos/politica-fiscal-e-tributaria/resultado-fiscal-estrutural}}
+
+Este tutorial parte do pressuposto de que o leitor já tem conhecimento 
+básico sobre o funcionamento do software estatístico R, e que consiga importar e
+exportar dados, criar variáveis e trabalhar com séries de tempo.
+
+\section*{Estrutura do Modelo Linear Dinâmico}
+
+Antes de prosseguir para as funções deste pacote é importante explicar e
+estrutura do modelo linear dinâmico usado para estimar os componentes não
+observados, incluindo a elasticidade:
+
+\[y_t = \mu_t + \beta_t \cdot{X_t} + \gamma_t + \varepsilon_t\]
+\[\mu_t = \mu_{t-1} + \nu_{t-1} + \xi_t\]
+\[\nu_t = \nu_{t-1} + \zeta_t\]
+\[\gamma_t = \gamma_{1,t} + \gamma_{2,}\]
+\[\gamma_{1,t} = - \gamma_{1,t-2} + \omega_{1,t}\]
+\[\gamma_{2,t} = - \gamma_{2,t-1} + \omega_{2,t}\]
+\[\beta_t = \beta_{t-1} + \eta_t\]
+
+Onde \(y_t\) é a série de tempo a ser decomposta, no caso de
+interesse deste pacote, essa variável costuma ser um grupo de receita. \(X_t\)
+deve ser uma série de tempo com uma ou mais variáveis explicativas. No caso de
+interesse, essa variável costuma ser o Hiato do Produto ou o Hiato do Petróleo.
+
+\(\mu_t\), \(\nu_t\), \(\gamma_t\) e \(\beta_t\) são os componentes não
+observados estimados pelo Filtro de Kalman, respectivamente, nível,
+inclinação, sazonalidade e coeficiente(s)
+
+Os resíduos destas equações seguem as seguintes distribuições: 
+
+\[\varepsilon_t \sim \mathcal{N}(0, \sigma^2_\varepsilon)\]
+\[\xi_t \sim \mathcal{N}(0, \sigma^2_\xi)\]
+\[\zeta_t \sim \mathcal{N}(0, \sigma^2_\zeta)\]
+\[\omega_{1,t} \sim \mathcal{N}(0, 2\sigma^2_\omega)\]
+\[\omega_{2,t} \sim \mathcal{N}(0, \sigma^2_\omega)\]
+\[\eta_t \sim \mathcal{N}(0, \sigma^2_\eta)\]
+
+Algumas hipóteses podem ser feitas sobre o comportamento dos componentes, que
+podem ser estocásticos (padrão), fixos ou ignorados. Um componente estocástico
+segue a estrutura de um passeio aleatório (com drift no caso do nível); um
+componente fixo apresentará o mesmo valor em todos os períodos; já um componente ignorado
+é excluído, junto com seus efeitos, das equações definidas acima.
+
+Este pacote, então, se propõe a estimar os componentes sob diferentes hipóteses
+e prover as ferramentas de testes que permitam comparar os modelos, subsidiando a
+escolha da melhor forma funcional sob a qual as elasticidades desvem ser estimadas. 
+
+\section*{Instalação e Carregamento}
+
+Antes de prosseguir é necessário, caso ainda não tenha sido feito, instalar e
+carregar a pacote de estimação de elasticidades da SPE/MF. Para isso, digite os
+seguintes comandos no console do R:
+
+<<Instalar, eval=FALSE>>=
+install.packages("ElastH")
+@
+<<carregar>>=
+library(ElastH)
+@
+
+\section*{Funções do ElastH}
+
+O primeiro passo para estimar as elasticidades é importar as séries de
+receitas para o R. Para fins deste tutorial, será usada uma série de exemplo
+disponibilizada neste pacote. Para ter acesso a ela, basta digitar o seguinte
+comando no console do R:
+
+<<data>>=
+data(Exemplo)
+@
+
+Assim, a variável \texttt{Exemplo} estará disponível. Esta variável
+consiste em uma lista de dados de interesse, incluindo séries de tempo
+similares (mas não iguais) aos grupos de receitas de interesse. Para
+visualizá-las, digite: 
+
+<<Exemplo.y>>=
+Exemplo$y
+Exemplo$Hpib
+@
+
+Para estimar os componentes não observados, basta utilizar o comando
+\texttt{decompor}. Em sua forma mais simples, é necessário apenas informar a
+série de tempo a ser usada como variável a ser decomposta:
+
+<<decompor1>>=
+modelo <- decompor(Exemplo$y)
+@
+
+É importante destacar que, para funcionar corretamente, a
+variável a ser decomposta seja uma série de tempo, ou seja de classe "ts":
+
+<<classExemplo>>=
+class(Exemplo$y)
+@
+
+A função retorna uma longa lista de variáveis, de classe "mee", e que agora
+está salva sob o nome de \texttt{modelo}. Uma das variáveis desta lista é a
+\texttt{comp}, que exibe o valor estimado para todos os componentes. Para
+visualizá-la, digite:
+
+<<modelo1>>=
+modelo$comp
+@
+
+Entre as diversas outras variáveis retornadas (vide \texttt{str(modelo)} para
+uma lista completa), destacam-se: os testes de independência de resíduos
+(variável \texttt{q}), o teste de homocedasticidade (variável \texttt{h}) e
+teste de normalidade dos resíduos (variável \texttt{nt}). Para visualizá-los,
+utilize:
+
+<<testes>>=
+modelo$q
+modelo$h
+modelo$nt
+@
+
+Os testes são sempre comparados a seus valores críticos. O
+modelo passa no teste se o valor for menor que seus valores críticos. Para mais
+informações sobre os resultados retornados por \texttt{decompor}, leia a página
+de ajuda dessa função com: \texttt{help(decompor)}.
+
+\subsection*{Inclusão de variáveis independentes}
+
+Para incluir variáveis explicativas, basta definir o argumento \texttt{X}:
+
+<<decompor2>>=
+modelo <- decompor(Exemplo$y, X=Exemplo$Hpib)
+modelo$comp
+@
+
+Note que agora temos um componente a mais: o coeficiente da variável
+explicativa, que, no caso particular deste pacote, representa a elasticidade de
+um grupo de receita ante o Hiato do PIB e é aproximadamente igual a \texttt{0.40}.
+
+\subsection*{Controle de comportamento dos componentes}
+
+Para controlar as hipóteses sobre os componentes, vide capitulo 2, utilizamos
+os argumentos \texttt{nivel}, \texttt{inclinacao}, \texttt{sazon} e \texttt{regres},
+que controlam, respectivamente, os componentes de: nível, inclinação,
+sazonalidade e coeficientes. Os argumentos podem ser definidos como "S", para
+componentes estocásticos (padrão), "F" para componentes fixos e "N" para
+componentes ignorados. Deste modo, para ignorar a sazonalidade e
+fixar a inclinação, mantendo os outros parâmetros estocásticos, digite:
+
+<<decompor3>>=
+modelo <- decompor(Exemplo$y, X=Exemplo$Hpib, sazon="N", inclinacao="F")
+modelo$comp
+@
+
+Perceba que o componente de sazonalidade não está mais presente e que o
+componente de inclinação apresenta o mesmo valor em todos os períodos.
+Para consultar informações, vide: \texttt{help(decompor)}.
+
+\subsection*{Definição de período de análise}
+
+Por fim, é possível restringir o escopo do modelo definindo o período de início e
+fim da análise. Isso é especialmente útil no caso de interesse,
+pois algumas receitas têm quebras estruturais importantes em suas
+elasticidades, sendo interessante, então, resumir o escopo da estimação somente ao
+período mais recente. Para isso utilize os parâmetros \texttt{comeco} e \texttt{fim}:
+
+<<decompor4>>=
+modelo <- decompor(Exemplo$y, X=Exemplo$Hpib, comeco=2007, fim=c(2014,4))
+@
+
+\section*{Atalhos para estimações em série}
+
+Considerando as várias possíveis hipóteses sobre o comportamento dos
+componentes, faz-se necessário testar quais destas hipóteses se encaixam melhor
+no grupo de receita em questão. A fim de facilitar a estimação
+de diversos modelos e possibilitar a sua comparação, é possível usar a função
+\texttt{todas.dlms}. A função estimará os componentes não observados para oito
+conjuntos de hipóteses diferentes\footnote{As hipóteses são as oito diferentes
+  combinações de componentes fixos ou estocásticos para: nível, inclinação e
+  sazonalidade}. Para utilizar esta função, basta digitar o seguinte comando:
+
+<<todas.dlms, eval=FALSE>>=
+lista.dlm <- todas.dlms(Exemplo$y, X=Exemplo$Hpib, 
+                        comeco=2005, fim=c(2014,4))
+str(lista.dlm,1)
+lista.dlm[[1]]$comp
+@
+<<todas.dlms.print, echo=FALSE>>=
+str(Exemplo$lista.y,1)
+Exemplo$lista.y[[1]]$comp
+@
+
+Perceba que a função retorna uma lista com 8 modelos estimados, e, para cada um
+deles, uma elasticidade é estimada e pode ser acessada pela mesma variável
+\texttt{comp}.
+
+Note também que cada um dos modelos estimados é do mesmo tipo, e tem as mesmas
+variáveis que os modelos estimados pela função \texttt{decompor}.
+
+<<classeigual, eval=FALSE>>=
+class(lista.dlm[[1]]) == class(modelo)
+@
+<<classeigual.print, echo=FALSE>>=
+class(Exemplo$lista.y[[1]]) == class(modelo)
+@
+
+Para mais informações, vide \texttt{help(todas.dlm)}
+
+\section*{Estimando todas as Elasticidades}
+
+Caso se tenha em mãos todas as séries de grupo de receita de
+interesse para o cálculo do resultado estrutural, é possível usar a função
+\texttt{calcularElasticidades} para calcular tudo de uma
+única vez. Além disso, a função já limita o período de análise das séries para
+os mesmos utilizados pela metodologia da SPE/MF. A função retornará os oito
+conjuntos de hipóteses diferentes para cada grupo de receita (do mesmo modo que
+\texttt{todas.dlm}). Ainda restará ao leitor a escolha de qual conjunto de
+hipóteses apresenta os melhores testes e resultados.  
+
+Para utilizar essa função, digite:
+
+<<elasticidade, eval=FALSE>>=
+resultado <- calcularElasticidades(Exemplo$receitas, 
+              Hpib=Exemplo$Hpib, Hpet=Exemplo$Hpet, fim=c(2015,4))
+@
+  
+Perceba que ainda é necessário informar a variável fim, embora o começo da
+série seja definido automaticamente. Também é necessário informar os dois tipos
+de variáveis explicativas: Hpib, a série de Hiato do PIB; e Hpet, a série de
+Hiato de Petróleo; a função usará cada série quando for conveniente. É
+muito importante observar a estrutura da variável receitas, que precisa ter um
+formato específico para este comando funcionar. A mesma deve ser uma série de tempo
+e conter todos os onze grupos de receitas definidos pela metodologia da SPE/MF,
+seguindo a seguinte ordem: TRT, TFP, TRC, TI, TM, TGC, ROY, PE, TRAN, ICMS,
+ISS. Observe a estrutura da variável usada no exemplo:
+
+<<exemplo>>=
+Exemplo$receitas
+@
+
+Por fim, a estrutura do resultado:
+
+%\begin{Schunk}
+%\begin{Sinput}
+%> str(resultado,1)
+%\end{Sinput}
+%\begin{Soutput}
+%List of 11
+ %$ trt :List of 8
+ %$ tss :List of 8
+ %$ trc :List of 8
+ %$ ti  :List of 8
+ %$ tm  :List of 8
+ %$ tgc :List of 8
+ %$ roy :List of 8
+ %$ pe  :List of 8
+ %$ tran:List of 8
+ %$ icms:List of 8
+ %$ iss :List of 8
+%\end{Soutput}
+%\end{Schunk}
+<<resultado.print, echo=FALSE>>=
+str(Exemplo$resultado,1)
+@
+
+Como se vê, o resultado é uma longa lista com todos os dados estimados para os onze grupos
+de receita, sendo que cada grupo de receita terá sido modelado sobre oito
+conjunto de hipóteses diferentes, vide \texttt{help(todas.dlms)}. Para acessar um
+resultado específico, digite:
+
+\begin{Schunk}
+\begin{Sinput}
+> resultado$trt[[4]]$comp
+\end{Sinput}
+\begin{Soutput}
+      Valor    Nivel   Inclinacao       Sazon     Coef1
+1  9.199340 9.243788 1.863919e-08 -0.06098914 0.3089809
+2  9.299899 9.336368 1.863921e-08 -0.03749267 0.3089843
+3  9.485294 9.412188 1.863921e-08  0.05062010 0.3089877
+4  9.471351 9.435955 1.863923e-08  0.04786171 0.3089876
+5  8.934018 8.999128 1.863922e-08 -0.06098914 0.3089877
+6  8.804211 8.846016 1.863922e-08 -0.03749267 0.3089899
+7  9.028303 8.982565 1.863921e-08  0.05062010 0.3089885
+8  9.219753 9.170934 1.863919e-08  0.04786171 0.3089863
+9  9.271527 9.332160 1.863906e-08 -0.06098914 0.3089840
+10 9.317269 9.352501 1.863906e-08 -0.03749267 0.3089816
+ [ reached getOption("max.print") -- omitted 54 rows ]
+\end{Soutput}
+\end{Schunk}
+
+\begin{Schunk}
+\begin{Sinput}
+> resultado$tgc[[7]]
+\end{Sinput}
+\begin{Soutput}
+      Valor    Nivel   Inclinacao       Sazon      Coef1    Coef2
+1  9.199340 9.210103 -0.008209257 -0.09618515 0.06890597 0.691593
+2  9.299899 9.201894 -0.008209257 -0.06793465 0.06890597 0.691593
+3  9.485294 9.193685 -0.008209257  0.08603561 0.06890597 0.691593
+4  9.471351 9.185476 -0.008209257  0.07808418 0.06890597 0.691593
+5  8.934018 9.177266 -0.008209257 -0.09618515 0.06890597 0.691593
+6  8.804211 9.169057 -0.008209257 -0.06793465 0.06890597 0.691593
+7  9.028303 9.160848 -0.008209257  0.08603561 0.06890597 0.691593
+8  9.219753 9.152638 -0.008209257  0.07808418 0.06890596 0.691593
+ [ reached getOption("max.print") -- omitted 36 rows ]
+\end{Soutput}
+\end{Schunk}
+
+
+
+\section*{Exportando resultados}
+
+O resultado final da função
+\texttt{calcularElasticidades} é de difícil leitura e acesso. Para facilitar a
+compreensão deste resultado, pode-se usar a função \texttt{exportar}. Esta
+função resume os resultados da função \texttt{calcularElasticidades} aos
+valores mais importantes de modo a facilitar o acesso: 
+
+\begin{Schunk}
+\begin{Sinput}
+> resultado.exportacao <- exportar(resultado)
+> resultado.exportacao
+\end{Sinput}
+\begin{Soutput}
+   receitas nivel slope sazon         Coef1      Coef2          Q
+1       TRT     S     S     S   0.084188086         NA  47.267729
+2       TRT     S     S     F   0.084294989         NA  46.796008
+3       TRT     S     F     S   0.168545420         NA   6.127050
+          Qc        H       Hc            N     Nc         aic
+1  16.918978 1.083973 2.595592 2.387293e+00 5.9914 -163.347931
+2  16.918978 1.083815 2.595592 2.386360e+00 5.9914 -163.388889
+3  16.918978 1.061193 2.595592 2.829753e+03 5.9914 -163.379223
+             w1           w2
+1  8.557211e-06           NA
+2  4.141594e-06           NA
+3  2.282713e-06           NA
+ [ reached getOption("max.print") -- omitted 85 rows ]
+\end{Soutput}
+\end{Schunk}
+
+O resultado é uma tabela em que a primeira coluna contém o nome do grupo de
+receita em questão, as três próximas colunas dizem que o componente é fixo ou
+estocástico, a quinta expressa o valor da elasticidade da receita ante o hiato
+do produto \textbf{contemporâneo}, enquanto a sexta coluna (Coef2), se
+presente, expressa o Hiato com uma defasagem temporal. Da
+sétima à décima terceira, são relatados o valor de alguns testes (vide
+\texttt{help(decompor)}. As últimas duas colunas informam os valores da
+variância dos coeficientes estimados para as elasticidades.
+
+Além disso, a função copiará automaticamente, em sistemas Windows, o resultado para
+a "área de transferência", sendo possível visualizar o resultado com mais
+facilidade colando (Com Ctrl-V ou comando Colar) os dados no seu software de
+planilhas, Microsoft Excel ou similar.\footnote{Caso o leitor utilize um
+sistemas Unix a exportação tera que acontecer em um segundo momento, via
+função \texttt{write.csv2} ou similar, vide: \texttt{help(write.csv2)}}.
+
+\end{document}

@@ -26,17 +26,6 @@ lista com os 8 modelos estimados
 \description{
 Função que calcula 8 formas funcionais para elasticidades para fins de comparação
 }
-\examples{
-seriey <- ts(runif(96), start=1997, end=c(2015,4), frequency=4)
-# Estimar modelo sem variáveis indepedentes
-\donttest{ lista.dlm <- decompor.todos(seriey) }
-
-seriex <- ts(runif(96), start=1997, end=c(2015,4), frequency=4)
-# Estimar modelos incluindo variável independente
-\donttest{ lista.dlm2 <- decompor.todos(y=seriey, X=seriex) }
-# Estimar modelo, com variavel dependente, mas restringindo o escopo temporal
-\donttest{ lista.dlm3 <- decompor.todos(y=seriey, X=seriex, comeco=2000, fim=2014) }
-}
 \seealso{
 \code{\link{decompor}}
 \code{\link{exportar}}

@@ -4,7 +4,7 @@
 \alias{modelar}
 \title{Componentes e Testes}
 \usage{
-modelar(y, dlm, estrutura)
+modelar(fit)
 }
 \arguments{
 \item{y}{Série temporal a ser decomposta}
@@ -17,24 +17,19 @@ modelar(y, dlm, estrutura)
   \item \code{logLike}: Valor da função de log-verossimilhança }}
 }
 \value{
-Lista com 15 variáveis, entre componentes e testes:
+Lista com 11 variáveis, entre componentes e testes:
   \itemize{
-    \item \code{y}: Série que foi decomposta.
-    \item \code{dlm}: Estrutura do objeto dlm usado na decomposição.
-    \item \code{f}: Lista de resultados do Filtro de Kalman. Ver \code{dlmFilter}.
-    \item \code{s}: Lista de resultados do processo de suavização. Ver \code{dlmSmooth}.
-    \item \code{comp}: Tabela com os componentes de interesses suavizados (Resultado Principal).
-    \item \code{interv}: tabela listando as intervenções, seu componente.
-    período, valor, desvio padrão do estimador e o pvalor do teste t.
-    \item \code{choques}: Matriz dos disturbios suavizados. Ver \code{choques}.
-    \item \code{e}: Série dos erros de projeção um passo a frente.
-    \item \code{q}: Teste de independência dos erros de projeção.
-    \item \code{q2}: Teste de independência dos erros de projeção, com o dobro de lags.
-    \item \code{h}: Teste de homocedasticidade dos erros de projeção.
-    \item \code{nt}: Teste de normalidade dos erros de projeção.
-    \item \code{aic}: Critério de Akaike.
-    \item \code{bic}: Critério de Bayes.
-    \item \code{tt}: Lista com resultado de testes t para os coeficientes estimados. }
+    \item \code{y}: Série que foi decomposta
+    \item \code{dlm}: Estrutura do objeto dlm usado na decomposição
+    \item \code{f}: Componentes resultantes do filtro
+    \item \code{theta}: Componentes suavizados
+    \item \code{c}: Subconjunto de theta, com sazonalidade agregada e nomes nas colunas (Resultado Principal)
+    \item \code{interv}: tabela listando as intervenções, seu componente, período, valor e teste t.
+    \item \code{u}: Matriz de resíduos
+    \item \code{q}: Teste de independência dos resíduos
+    \item \code{h}: Teste de homocedasticidade dos resíduos
+    \item \code{nt}: Teste de normalidade dos resíduos
+    \item \code{aic}: Valor AIC da função de verossimilhança usada para estimar modelo.}
 }
 \description{
 Função que calcula a partir do objeto dlm e de algumas variáveis estruturais,

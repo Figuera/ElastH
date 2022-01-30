@@ -10,114 +10,102 @@
 #'  \itemize{
 #'    \item \code{p}: Número de variâncias estocásticas
 #'    \item \code{logLike}: Valor da função de log-verossimilhança }
-#' @return Lista com 15 variáveis, entre componentes e testes:
+#' @return Lista com 11 variáveis, entre componentes e testes:
 #'   \itemize{
-#'     \item \code{y}: Série que foi decomposta.
-#'     \item \code{dlm}: Estrutura do objeto dlm usado na decomposição.
-#'     \item \code{f}: Lista de resultados do Filtro de Kalman. Ver \code{dlmFilter}.
-#'     \item \code{s}: Lista de resultados do processo de suavização. Ver \code{dlmSmooth}.
-#'     \item \code{comp}: Tabela com os componentes de interesses suavizados (Resultado Principal).
-#'     \item \code{interv}: tabela listando as intervenções, seu componente.
-#'     período, valor, desvio padrão do estimador e o pvalor do teste t.
-#'     \item \code{choques}: Matriz dos disturbios suavizados. Ver \code{choques}.
-#'     \item \code{e}: Série dos erros de projeção um passo a frente.
-#'     \item \code{q}: Teste de independência dos erros de projeção.
-#'     \item \code{q2}: Teste de independência dos erros de projeção, com o dobro de lags.
-#'     \item \code{h}: Teste de homocedasticidade dos erros de projeção.
-#'     \item \code{nt}: Teste de normalidade dos erros de projeção.
-#'     \item \code{aic}: Critério de Akaike.
-#'     \item \code{bic}: Critério de Bayes.
-#'     \item \code{tt}: Lista com resultado de testes t para os coeficientes estimados. }
-#
-#' @importFrom stats Box.test end frequency lag pt qchisq qf sd start ts window residuals
+#'     \item \code{y}: Série que foi decomposta
+#'     \item \code{dlm}: Estrutura do objeto dlm usado na decomposição
+#'     \item \code{f}: Componentes resultantes do filtro
+#'     \item \code{theta}: Componentes suavizados
+#'     \item \code{c}: Subconjunto de theta, com sazonalidade agregada e nomes nas colunas (Resultado Principal)
+#'     \item \code{interv}: tabela listando as intervenções, seu componente, período, valor e teste t.
+#'     \item \code{u}: Matriz de resíduos
+#'     \item \code{q}: Teste de independência dos resíduos
+#'     \item \code{h}: Teste de homocedasticidade dos resíduos
+#'     \item \code{nt}: Teste de normalidade dos resíduos
+#'     \item \code{aic}: Valor AIC da função de verossimilhança usada para estimar modelo.}
+#'
+#' @importFrom stats Box.test end frequency lag pt qchisq qf sd start ts window
 #' @importFrom utils tail
 #' @keywords internal
 modelar <-
-function(y, dlm, estrutura) {
+function(fit) {
   # Calculando o valor dos componentes
-  f <- dlm::dlmFilter(y, dlm)
-  s <- dlm::dlmSmooth(f)
+  mod    <- fit$model
+  modelo <- KFS(mod, smoothing=c("state", "signal", "disturbance"), simplify=F)
 
-  n    <- length(y)      # Tamanho da série
-  d    <- length(dlm$m0) # Número de componentes
-  freq <- frequency(y)    # Frequência da série principal
-
-  # Reestruturando Tabela de Componentes
-  dlm.posc <- posicoes(dlm)
-  int.posc <- dlm.posc$int #Intervenções
-  norm.posc <- dlm.posc$norm #Não intervenções
-
-  # Truque para que cs se comporte como uma série de tempo E como uma matriz,
-  # ainda que tenha apenas uma coluna
-  if("mts" %in% class(s$s)){
-    cs <- as.matrix(s$s)
-  } else {
-    cs <- ts(matrix(s$s), start=start(s$s), frequency=freq)
-  }
-
-  comp <- data.frame(y,cs[-1, norm.posc])
-  colnames(comp) <- c("Valor", names(norm.posc))
-
-  # Componente de Sazonalidade definição diferenciada
-  if(any(grepl("Sazon", names(norm.posc)))) {
-    comp["Sazon"] <- comp["Sazon"] + cs[-1, norm.posc["Sazon"] + 2]
-  }
-
-  #Modelo sem testes e sem intervenções é criado
-  modelo <- list(y = y, dlm = dlm, f = f, s = s, comp = comp)
+  freq <- frequency(mod$y)    # Frequência da série principal
 
   #Teste de intervenção
-  n.int    <- length(int.posc) 
-  if(n.int > 0){
-    # Variância "de fato" dos resíduos das intervenções
-    covar <- dlm::dlmSvd2var(s$U.S, s$D.S)
-    var   <- tail(diag(covar[[length(covar)]]), n=n.int)
+  intZ  <- grepl("choque",  colnames(mod$T))
+  intTn <- grepl("Cnivel",  colnames(mod$T))
+  intTi <- grepl("Cincli",  colnames(mod$T))
+  int <- intZ | intTn | intTi
 
-    inicio   <- ncol(dlm$X)-n.int
-    posx     <- apply(dlm$X[,inicio + seq(n.int), drop=F], 2, which.max) # Posição de intervenção
-    testet   <- 2*(1 - pt(abs(diag(cs[posx,int.posc, drop=F]))/sqrt(var), n-d)) # Teste t do valor da intervenção
-    periodo  <- start(y)[1] + (posx-2+start(y)[2])/freq
-    # Nomes usados na matrix de intervenções, apenas informativo
-    #colnomes <- paste(names(int.posc),(start(y)[1] + (posx-2+start(y)[2])%/%freq), (posx%%freq+start(y)[2]-1), sep=".")
+  if(sum(int) > 0){
+    # Variância "de fato" dos resíduos das intervenções
+    var   <- diag(as.matrix(modelo$V[int, int, attr(mod, "n")]))
+
+    posxZ    <- apply(mod$Z[, intZ, , drop=F], 2, which.max) # Posição de intervenção
+    posxTn   <- apply(mod$T["nivel", intTn, , drop=F], 2, which.max) # Posição de intervenção
+
+    if(any(attr(mod, "state_types") == "incli")) {
+      posxTi   <- apply(mod$T["incli", intTi, , drop=F], 2, which.max) # Posição de intervenção
+    } else {
+      posxTi <- NULL
+    }
+
+    posx     <- c(posxZ, posxTn, posxTi)
+    testet   <- 2*(1 - pt(abs(diag(modelo$alphahat[posx, int, drop=F]))/sqrt(var), attr(mod, "n") - attr(mod, "m"))) # Teste t do valor da intervenção
+    periodo  <- start(mod$y)[1] + (posx-2+start(mod$y)[2])/freq
 
     # Matrix de intervenções
-    interv.df <- data.frame(periodo=periodo, valor=diag(cs[posx,int.posc, drop=F]), 
-                            desvio=sqrt(var), pvalor=testet, row.names=names(int.posc))
+    interv.df <- data.frame(periodo=periodo, valor=diag(modelo$alphahat[posx,int, drop=F]), 
+                            desvio=sqrt(var), pvalor=testet,
+                            row.names=paste0(colnames(mod$T[, int, 1, drop=F]), 1:sum(int)))
 
     modelo$interv <- interv.df
   }
 
   # Calculo dos resíduos
-  modelo$choques <- choques(modelo$f)
-  modelo$e <- residuals(modelo$f, sd=F)
+  #eps <- modelo$epshat/sqrt(t(modelo$model$H[,,1] - modelo$V_eps))
+  #eta <- modelo$etahat/sqrt(t(apply(rep(modelo$model$Q[,,1],dim(modelo$V_eta)[3]) - modelo$V_eta, 3, diag)))
+  #modelo$choques <- cbind(eps, eta)
+  #states <- attr(mod, "state_types")[!(attr(mod, "state_types") %in% c("Cnivel", "Cincli", "custom"))]
+  #colnames(modelo$choques) <- c("choque", paste0('C', states))
 
   # Testes diversos
-  lags <- max(2*freq, floor(sqrt(n-d)) + estrutura$p-1)
-  q <- Box.test(modelo$e,   lags, type="Ljung-Box", estrutura$p-1)
-  modelo$q   <- data.frame(Q.valor= q$statistic, Q.critico=qchisq(0.95, q$parameter), pvalor=q$p.value, lags=lags)
-  q <- Box.test(modelo$e, 2*lags, type="Ljung-Box", estrutura$p-1)
-  modelo$q2  <- data.frame(Q.valor= q$statistic, Q.critico=qchisq(0.95, q$parameter), pvalor=q$p.value, lags=2*lags)
-
-  modelo$h   <- teste.h(modelo$e, d) 
-  modelo$nt  <- teste.normalidade(modelo$e)
-  modelo$aic <- 1/n*(2*estrutura$loglike + 2*(estrutura$p+d))
-  modelo$bic <- 1/n*(2*estrutura$loglike + log(n)*(estrutura$p+d))
+  testes     <- list()
+  npar       <- length(fit$optim.out$par)
+  lags       <- max(2*freq, floor(sqrt(attr(mod, "n")-attr(mod, "m"))) + npar-1)
+  q          <- Box.test(modelo$v,   lags, type="Ljung-Box", npar-1)
+  testes$q   <- data.frame(Q.valor= q$statistic,
+                           Q.critico=qchisq(0.95, q$parameter),
+                           pvalor=q$p.value, lags=lags)
+  q          <- Box.test(modelo$v, 2*lags, type="Ljung-Box", npar-1)
+  testes$q2  <- data.frame(Q.valor= q$statistic,
+                           Q.critico=qchisq(0.95, q$parameter),
+                           pvalor=q$p.value, lags=2*lags)
+  testes$h   <- teste.h(modelo$v, attr(mod, "m")) 
+  testes$nt  <- teste.normalidade(modelo$v)
+  testes$aic <- 1/attr(mod,"n")*(2*fit$optim.out$value
+                                 + 2*(npar+attr(mod, "m")))
+  testes$bic <- 1/attr(mod,"n")*(2*fit$optim.out$value
+                                 + log(attr(mod,"n"))*(npar+attr(mod,"m")))
   
   # Calculando testes t para coeficientes
   # Variância "de fato" dos resíduos das intervenções
-  if("Coef1" %in% names(norm.posc)) {
-    coefs <- norm.posc[grepl("Coef", names(norm.posc))]
-                             
-    modelo$tt <- lapply(coefs, function(posc) {
-             covar  <- dlm::dlmSvd2var(s$U.S, s$D.S)
-             var    <- diag(covar[[length(covar)]])[posc]
-             tvalor <- cs[nrow(cs), posc]/sqrt(var)
-             pvalor <- 2*(1-pt(abs(tvalor), n-d))
-
-             data.frame(valor=cs[nrow(cs), posc], desvio=sqrt(var), tvalor=tvalor, pvalor=pvalor)
-                        })
+  if("X" %in% rownames(mod$a1)) {
+    testes$tt <- lapply(which(rownames(mod$a1) == "X"), function(posc) {
+      var    <- modelo$V[posc, posc, attr(mod, "n")]
+      tvalor <- modelo$alphahat[attr(mod, "n"), posc]/sqrt(var)
+      pvalor <- 2*(1-pt(abs(tvalor), attr(mod, "n") - attr(mod, "m")))
+      
+      data.frame(valor=modelo$alphahat[attr(mod, "n"), posc],
+                 desvio=sqrt(var), tvalor=tvalor, pvalor=pvalor)
+    })
   }
 
-  class(modelo) <- "mee"
-  return(modelo)
+  ret <- list(modelo=modelo, testes=testes)
+  class(ret) <- "mee"
+  return(ret)
 }

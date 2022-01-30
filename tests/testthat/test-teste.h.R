@@ -10,7 +10,7 @@ test_that("teste h deve retornar valores corretos", {
             expect_equal(h, Exemplo$h)
         })
 
-h <- teste.h(Exemplo$e, 39)
+h <- teste.h(Exemplo$u[,1], 39)
 
 test_that("teste h deve retornar erro quando for necessário", {
             expect_equal(h, "Nao existem graus de liberdade o suficientes para o teste h")

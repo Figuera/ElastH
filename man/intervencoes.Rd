@@ -4,10 +4,10 @@
 \alias{intervencoes}
 \title{Intervencoes}
 \usage{
-intervencoes(res, dlm)
+intervencoes(kfs)
 }
 \arguments{
-\item{res}{Data frame de choques}
+\item{u}{Data frame de choques}
 
 \item{dlm}{Objeto dlm}
 }

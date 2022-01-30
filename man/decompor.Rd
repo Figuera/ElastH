@@ -4,16 +4,16 @@
 \alias{decompor}
 \title{Estimacao de componentes do Filtro de Kalman}
 \usage{
-decompor(y, X = NULL, irregular = "S", nivel = "S", inclinacao = "S",
-  sazon = "S", regres = "S", comeco = NULL, fim = NULL, freq = NULL,
-  ipar = c(-0.5, -1, -1.5, -2, 16), interv.b = TRUE)
+decompor(y, X = NULL, irregular = NA, nivel = NA, inclinacao = NA,
+  sazon = NA, regres = NA, comeco = NULL, fim = NULL, freq = NULL,
+  ipar = NULL, interv.b = TRUE, retrocompativel = FALSE)
 }
 \arguments{
 \item{y}{Série temporal a ser decomposta.}
 
 \item{X}{Série temporal independente - (Hiatos).}
 
-\item{irregular}{String definidora do comportamento do disturbio da equação
+\item{irregular}{String definidora da variância do resíduo da equação
 principal (Vide details):
        \itemize{
          \item \code{"S"} Variância definida automaticamente
@@ -21,51 +21,49 @@ principal (Vide details):
          \item \code{"N"} Ignorar Componente (não é possível ignorar a
          equação principal)}}
 
-\item{nivel}{String definidora do comportamento do disturbio da equação do nível.
+\item{nivel}{String definidora da variância do resíduo da equação do nível.
 Ver irregular para valores possíveis.}
 
-\item{inclinacao}{String definidora do comportamento do disturbio da equação do inclinacao.
+\item{inclinacao}{String definidora da variância do resíduo da equação do inclinacao.
 Ver irregular para valores possíveis.}
 
-\item{sazon}{String definidora do comportamento do disturbio da equação da
+\item{sazon}{String definidora da variância do resíduo da equação da
 sazonalidade. Ver irregular para valores possíveis.}
 
-\item{regres}{String definidora do comportamento do disturbio da equação dos
+\item{regres}{String definidora da variância do resíduo da equação dos
 coeficientes. Ver irregular para valores possíveis.}
 
-\item{comeco}{Período inicial de estimação.}
+\item{comeco}{Período inicial.}
 
-\item{fim}{Período final de estimação.}
+\item{fim}{Período final.}
 
-\item{freq}{Frequência da série de tempo. Informar somente se \code{y} não
-for uma série de tempo.}
+\item{freq}{Frequência da série de tempo. Padrão é a frequência se y. Se y
+não for uma série de tempo é necessário informar variável manualmente.}
 
-\item{ipar}{Parâmetros iniciais para o processo de otimização. Não é
-aconselhável modificar os valores padrões.}
+\item{ipar}{Parâmetros iniciais para o processo de otimização (Deixar o
+padrão).}
 
-\item{interv.b}{\code{TRUE} (Padrão) ou \code{FALSE}. Define se as intervenções serão
+\item{interv.b}{TRUE (Padrão) ou F. Define se as intervenções serão
 detectadas automaticamente.}
 }
 \value{
-A função retorna uma lista com 15 variáveis, entre componentes e testes:
+A função retorna uma lista com 11 variáveis, entre componentes e
+testes:
   \itemize{
-    \item \code{y}: Série que foi decomposta.
-    \item \code{dlm}: Estrutura do objeto dlm usado na decomposição.
-    \item \code{f}: Lista de resultados do Filtro de Kalman. Ver \code{dlmFilter}.
-    \item \code{s}: Lista de resultados do processo de suavização. Ver \code{dlmSmooth}.
-    \item \code{comp}: Tabela com os componentes de interesses suavizados (Resultado Principal).
-    \item \code{interv}: tabela listando as intervenções, seu componente.
-       período, valor, desvio padrão do estimador e o pvalor do teste t.
-    \item \code{choques}: Matriz dos disturbios suavizados. Ver \code{choques}.
-    \item \code{e}: Série dos erros de projeção um passo a frente.
-    \item \code{q}: Teste de independência dos erros de projeção.
-    \item \code{q2}: Teste de independência dos erros de projeção, com o dobro de lags.
-    \item \code{h}: Teste de homocedasticidade dos erros de projeção.
-    \item \code{nt}: Teste de normalidade dos erros de projeção.
-    \item \code{aic}: Critério de Akaike.
-    \item \code{bic}: Critério de Bayes.
-    \item \code{tt}: Lista com resultado de testes t para os coeficientes estimados. 
- }
+    \item \code{y}: Série que foi decomposta
+    \item \code{dlm}: Estrutura do objeto dlm usado na decomposição
+    \item \code{f}: Componentes resultantes do filtro
+    \item \code{theta}: Componentes suavizados
+    \item \code{c}: Subconjunto de theta, com sazonalidade agregada e nomes
+    nas colunas (Resultado Principal)
+    \item \code{interv}: tabela listando as intervenções, seu componente,
+    período, valor e teste t.
+    \item \code{u}: Matriz de resíduos
+    \item \code{q}: Teste de independência dos resíduos
+    \item \code{h}: Teste de homocedasticidade dos resíduos
+    \item \code{nt}: Teste de normalidade dos resíduos
+    \item \code{aic}: Valor AIC da função de verossimilhança usada para
+    estimar modelo.}
 }
 \description{
 Função principal, usada para calcular as elasticidades dos grupos de
@@ -113,7 +111,7 @@ independentes. Com isso, 2 ou mais coeficientes serão estimados, nesse caso
 \eqn{X}, \eqn{\beta} e \eqn{\eta} devem ser tratados como matrix (e não um
 vetor).
 
-Caso \code{interv.b} seja definido como \code{FALSE}. Então intervenções não
+Caso \code{interv.b} seja definido como \code{F}. Então intervenções não
 serão calculadas automaticamente, caso se deseje implementer intervenções de
 modo manual, então os vetores de intervenção devem ser colocados na matrix
 \code{X}.

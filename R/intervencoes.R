@@ -2,26 +2,37 @@
 #'
 #' Função para detectar automaticamente as intervenções
 #'
-#' @param res Data frame de choques
+#' @param u Data frame de choques
 #' @param dlm Objeto dlm
 #' @return Lista com posição da intervenção
 #'
 #' @importFrom stats end frequency lag sd start ts window
 #' @keywords internal
 intervencoes <-
-  function(res, dlm) {
+  function(kfs) {
     ret <- list()
+    mod <- kfs$model
+    posQn <- which(attr(mod, "state_types") == "nivel")
+    posQi <- which(attr(mod, "state_types") == "incli")
     # Detectamos os períodos em que os erros absolutos são maiores que os limites estabelecidos
-    n   <- nrow(res$ch)
-    lim <- list(Choque       = if(dlm$V      > exp(-32)) 2.3 else 2.1,
-                C.Nivel      = if(dlm$W[1,1] > exp(-32)) 2.5 else 2.3,
-                C.Inclinacao = if(dlm$W[2,2] > exp(-32)) 3   else 2.8)
+    n   <- attr(mod, "n")
+    lim <- list(principal = if(mod$H[,,1] > exp(-32)) 2.3 else 2.1,
+                nivel  = if(!(length(posQn) > 0))                 NULL
+                         else if(mod$Q[posQn,posQn,1] > exp(-32)) 2.5
+                         else                                     2.3,
+                
+                incli  = if(!(length(posQi) > 0))                 NULL
+                         else if(mod$Q[posQi,posQi,1] > exp(-32)) 3
+                         else                                     2.8)
 
-    ret <- lapply(colnames(res$ch), function(choque) {
+    #scs <- filtro$choques[, colnames(filtro$choques) %in% c("choque", "Cnivel", "Cincli")]
+    scs  <- data.frame(principal=rstandard(kfs, "pearson"),
+                       rstandard(kfs, "state"))
+    scs  <- scs[, names(scs) %in% names(lim)]
+
+    ret <- lapply(colnames(scs), function(choque) {
       ret   <- NULL
-      col.c <- res$ch[,choque]
-      sd.c  <- res$sd[,choque]
-      sc    <- col.c/sd.c
+      sc    <- scs[, choque]
 
       # Retira o último erro que não está bem definido
       sc[is.na(sc) | is.nan(sc)] <- 0
@@ -35,11 +46,11 @@ intervencoes <-
           # que o limite e não mudam de sinal.
           k <- (-1)^(sc[j]<0) * sc[j:n] > lim[[choque]]
           k <- if(which.min(k) > 1) which.min(k)-1 else n
-          if (choque=="C.Nivel") {
+          if (choque=="nivel") {
             pos <- j - 1 + which.max(abs(sc[j:(j+k)]))
             X[pos] <- 1
             j <- j + k
-          } else if(choque=="C.Inclinacao") {
+          } else if(choque=="incli") {
             pos <- j - 1 + which.max(abs(sc[j:(j+k)]))
             X[pos] <- 1
             j <- j + k
@@ -57,6 +68,8 @@ intervencoes <-
     })
 
     ret <- do.call(cbind, ret)
+    colnames(ret) <- paste0("I.", colnames(ret))
+    colnames(ret) <- numerar.nomes(colnames(ret))
 
     return(ret)
   }

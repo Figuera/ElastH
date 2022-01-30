@@ -4,11 +4,34 @@
 \name{Exemplo}
 \alias{Exemplo}
 \title{Exemplos de Inputs e Outputs}
-\format{An object of class \code{list} of length 29.}
+\format{Lista com 15 variáveis
+\describe{
+  \item{y}{Exemplo de série de tempo, geralmente usada como variável
+  dependente}
+  \item{dlm}{Exemplo de objeto dlm}
+  \item{f}{Exemplo de componentes calculados pelo por modelo dlm}
+  \item{theta}{Exemplo de componentes calculados e suavizados}
+  \item{c}{Exemplo de componentes, similar a theta porém em formato legível}
+  \item{interv}{Exemplo de lista de intervenções}
+  \item{u}{Exemplo de matriz de resíduos}
+  \item{q}{Exemplo de teste Q}
+  \item{h}{Exemplo de teste H}
+  \item{nt}{Exemplo de teste de normalidade}
+  \item{aic}{Exemplo de valor AIC}
+  \item{loglike}{Exemplo de valor de verossimilhança}
+  \item{u.pre}{Outro exemplo de matrix de resíduos, caso pré intervenção}
+  \item{dlm.pre}{Outro exemplo de objeto dlm, caso pré intervenção}
+  \item{X.pre}{Exemplo de série de tempo de variável independente, diferente
+  de dlm$X por ser pré intervenção}
+  \item{receitas}{Exemplo de matriz de séries de tempo no formato correto
+  para utilização na função \code{\link{calcularElasticidades}}}
+  \item{Hpib}{Exemplo de série de tempo usada como hiato do produto, similar a dlm$X ou X.pre}
+  \item{Hpet}{Exemplo de série de tempo usada como hiato do petroleo, similar a Hpib}
+}}
 \usage{
 data(Exemplo)
 }
 \description{
-Lista extensiva de dados utilizados somente para exemplos e testes.
+Lista da dados extensivamente utilizados para exemplos e testes
 }
 \keyword{datasets}

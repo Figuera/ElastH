@@ -1,0 +1,243 @@
+\documentclass[11pt,a4paper,oneside]{report}
+%\VignetteIndexEntry{Tutorial}
+\usepackage{authblk}
+\usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+\usepackage{Sweave}
+\begin{document}
+\title{Passo a passo de como estimar elasticidades de grupos de receita usando
+  o pacote ElastH}
+\author[1]{Caio Figueiredo}
+\affil[1]{Secretaria de Política Econômica do Ministério da Fazenda do Brasil} 
+\maketitle
+\tableofcontents
+
+
+\section*{Introdução}
+
+O pacote ElastH foi desenvolvido com a intenção de prover uma
+maneira simples de replicar as estimações de elasticidades de grupos de
+receitas, de interesse para a metodologia de cálculo do resultado estrutural da SPE/MF.
+\footnote{\url{http://www.spe.fazenda.gov.br/assuntos/politica-fiscal-e-tributaria/resultado-fiscal-estrutural}}
+
+Este tutorial parte do pressuposto de que o leitor já tem conhecimento 
+básico sobre o funcionamento do software estatístico R, e que consiga importar e
+exportar dados, criar variáveis e trabalhar com séries de tempo.
+
+\section*{Estrutura do Modelo Linear Dinâmico}
+
+Antes de prosseguir para as funções deste pacote é importante explicar e
+estrutura do modelo linear dinâmico usado para estimar os componentes não
+observados, incluindo a elasticidade:
+
+\[y_t = \mu_t + \beta_t \cdot{X_t} + \gamma_t + \varepsilon_t\]
+\[\mu_t = \mu_{t-1} + \nu_{t-1} + \xi_t\]
+\[\nu_t = \nu_{t-1} + \zeta_t\]
+\[\gamma_t = \gamma_{1,t} + \gamma_{2,}\]
+\[\gamma_{1,t} = - \gamma_{1,t-2} + \omega_{1,t}\]
+\[\gamma_{2,t} = - \gamma_{2,t-1} + \omega_{2,t}\]
+\[\beta_t = \beta_{t-1} + \eta_t\]
+
+Onde \(y_t\) é a série de tempo a ser decomposta, no caso de
+interesse deste pacote, essa variável costuma ser um grupo de receita. \(X_t\)
+deve ser uma série de tempo com uma ou mais variáveis explicativas. No caso de
+interesse, essa variável costuma ser o Hiato do Produto ou o Hiato do Petróleo.
+
+\(\mu_t\), \(\nu_t\), \(\gamma_t\) e \(\beta_t\) são os componentes não
+observados estimados pelo Filtro de Kalman, respectivamente, nível,
+inclinação, sazonalidade e coeficiente(s)
+
+Os resíduos destas equações seguem as seguintes distribuições: 
+
+\[\varepsilon_t \sim \mathcal{N}(0, \sigma^2_\varepsilon)\]
+\[\xi_t \sim \mathcal{N}(0, \sigma^2_\xi)\]
+\[\zeta_t \sim \mathcal{N}(0, \sigma^2_\zeta)\]
+\[\omega_{1,t} \sim \mathcal{N}(0, 2\sigma^2_\omega)\]
+\[\omega_{2,t} \sim \mathcal{N}(0, \sigma^2_\omega)\]
+\[\eta_t \sim \mathcal{N}(0, \sigma^2_\eta)\]
+
+Algumas hipóteses podem ser feitas sobre o comportamento dos componentes, que
+podem ser estocásticos (padrão), fixos ou ignorados. Um componente estocástico
+segue a estrutura de um passeio aleatório (com drift no caso do nível); um
+componente fixo apresentará o mesmo valor em todos os períodos; já um componente ignorado
+é excluído, junto com seus efeitos, das equações definidas acima.
+
+Este pacote, então, se propõe a estimar os componentes sob diferentes hipóteses
+e prover as ferramentas de testes que permitam comparar os modelos, subsidiando a
+escolha da melhor forma funcional sob a qual as elasticidades desvem ser estimadas. 
+
+\section*{Instalação e Carregamento}
+
+Antes de prosseguir é necessário, caso ainda não tenha sido feito, instalar e
+carregar a pacote de estimação de elasticidades da SPE/MF. Para isso, digite os
+seguintes comandos no console do R:
+
+\begin{Schunk}
+\begin{Sinput}
+> install.packages("ElastH")
+\end{Sinput}
+\end{Schunk}
+\begin{Schunk}
+\begin{Sinput}
+> library(ElastH)
+\end{Sinput}
+\end{Schunk}
+
+\section*{Funções do ElastH}
+
+O primeiro passo para estimar as elasticidades é importar as séries de
+receitas para o R. Para fins deste tutorial, será usada uma série de exemplo
+disponibilizada neste pacote. Para ter acesso a ela, basta digitar o seguinte
+comando no console do R:
+
+\begin{Schunk}
+\begin{Sinput}
+> data(Exemplo)
+\end{Sinput}
+\end{Schunk}
+
+Assim, a variável \texttt{Exemplo} estará disponível. Esta variável
+consiste em uma lista de dados de interesse, incluindo séries de tempo
+similares (mas não iguais) aos grupos de receitas de interesse. Para
+visualizá-las, digite: 
+
+\begin{Schunk}
+\begin{Sinput}
+> Exemplo$y
+\end{Sinput}
+\begin{Soutput}
+         Qtr1     Qtr2     Qtr3     Qtr4
+2005 8.468764 8.456690 8.599470 8.594502
+2006 8.589788 8.697490 8.809763 8.834902
+2007 8.799565 8.886277 9.074360 9.134457
+2008 9.199340 9.299899 9.485294 9.471351
+2009 8.934018 8.804211 9.028303 9.219753
+2010 9.271527 9.317269 9.441083 9.486182
+2011 9.447879 9.526106 9.651847 9.654834
+2012 9.482889 9.560783 9.490462 9.511258
+2013 9.382203 9.497319 9.541160 9.354080
+2014 9.260405 9.183220 9.229239 9.206761
+\end{Soutput}
+\begin{Sinput}
+> Exemplo$Hpib
+\end{Sinput}
+\begin{Soutput}
+              Qtr1          Qtr2          Qtr3          Qtr4
+1997 -0.0021561715  0.0072766419 -0.0097881772 -0.0064660835
+1998 -0.0161704444 -0.0149841336 -0.0034022772 -0.0046802549
+1999  0.0097203565  0.0080387997  0.0048600295  0.0017400091
+2000  0.0535383046  0.0033112412  0.0727705217 -0.0403442535
+2001 -0.0133474694 -0.0139414899 -0.0157975711  0.0030958321
+2002  0.0011423274  0.0073170240  0.0120591076  0.0134010693
+2003 -0.0106558455  0.0118463839  0.0089797693  0.0089602312
+2004  0.0065060722  0.0024627787  0.0283609871 -0.0051798943
+2005 -0.0021561715  0.0072766419 -0.0097881772 -0.0064660835
+2006 -0.0161704444 -0.0149841336 -0.0034022772 -0.0046802549
+2007  0.0097203565  0.0080387997  0.0048600295  0.0017400091
+2008  0.0535383046  0.0033112412  0.0727705217 -0.0403442535
+ [ reached getOption("max.print") -- omitted 7 rows ]
+\end{Soutput}
+\end{Schunk}
+
+Para estimar os componentes não observados, basta utilizar o comando
+\texttt{criar.dlm}. Em sua forma mais simples, é necessário apenas informar a
+série de tempo a ser usada como variável a ser decomposta:
+
+\begin{Schunk}
+\begin{Sinput}
+> modelo <- criar.dlm(Exemplo$y)
+\end{Sinput}
+\end{Schunk}
+
+É importante destacar que, para funcionar corretamente, a
+variável a ser decomposta seja uma série de tempo, ou seja de classe "ts":
+
+\begin{Schunk}
+\begin{Sinput}
+> class(Exemplo$y)
+\end{Sinput}
+\begin{Soutput}
+[1] "ts"
+\end{Soutput}
+\end{Schunk}
+
+A função retorna uma longa lista de variáveis, de classe "mee", e que agora
+está salva sob o nome de \texttt{modelo}. Uma das variáveis desta lista é a
+\texttt{comp}, que exibe o valor estimado para todos os componentes. Para
+visualizá-la, digite:
+
+\begin{Schunk}
+\begin{Sinput}
+> modelo$comp
+\end{Sinput}
+\begin{Soutput}
+NULL
+\end{Soutput}
+\end{Schunk}
+
+Entre as diversas outras variáveis retornadas (vide \texttt{str(modelo)} para
+uma lista completa), destacam-se: os testes de independência de resíduos
+(variável \texttt{q}), o teste de homocedasticidade (variável \texttt{h}) e
+teste de normalidade dos resíduos (variável \texttt{nt}). Para visualizá-los,
+utilize:
+
+\begin{Schunk}
+\begin{Sinput}
+> modelo$q
+\end{Sinput}
+\begin{Soutput}
+           Q.valor Q.critico    pvalor
+X-squared 5.722657  14.06714 0.5724805
+\end{Soutput}
+\begin{Sinput}
+> modelo$h
+\end{Sinput}
+\begin{Soutput}
+   H.valor H.critico     pvalor
+1 6.976677   2.81793 0.00159846
+\end{Soutput}
+\begin{Sinput}
+> modelo$nt
+\end{Sinput}
+\begin{Soutput}
+  Normality.test Normality.critico    pvalor
+1       2.365018          5.991465 0.3065087
+\end{Soutput}
+\end{Schunk}
+
+Os testes são sempre comparados a seus valores críticos. O
+modelo passa no teste se o valor for menor que seus valores críticos. Para mais
+informações sobre os resultados retornados por \texttt{criar.dlm}, leia a página
+de ajuda dessa função com: \texttt{help(criar.dlm)}.
+
+\subsection*{Inclusão de variáveis independentes}
+
+Para incluir variáveis explicativas, basta definir o argumento \texttt{X}:
+
+\begin{Schunk}
+\begin{Sinput}
+> modelo <- criar.dlm(Exemplo$y, X=Exemplo$Hpib)
+> modelo$comp
+\end{Sinput}
+\begin{Soutput}
+NULL
+\end{Soutput}
+\end{Schunk}
+
+Note que agora temos um componente a mais: o coeficiente da variável
+explicativa, que, no caso particular deste pacote, representa a elasticidade de
+um grupo de receita ante o Hiato do PIB e é aproximadamente igual a \texttt{0.40}.
+
+\subsection*{Controle de comportamento dos componentes}
+
+Para controlar as hipóteses sobre os componentes, vide capitulo 2, utilizamos
+os argumentos \texttt{nivel}, \texttt{inclinacao}, \texttt{sazon} e \texttt{regres},
+que controlam, respectivamente, os componentes de: nível, inclinação,
+sazonalidade e coeficientes. Os argumentos podem ser definidos como "S", para
+componentes estocásticos (padrão), "F" para componentes fixos e "N" para
+componentes ignorados. Deste modo, para ignorar a sazonalidade e
+fixar a inclinação, mantendo os outros parâmetros estocásticos, digite:
+
+\begin{Schunk}
+\begin{Sinput}
+> modelo <- criar.dlm(Exemplo$y, X=Exemplo$Hpib, sazon="N", inclinacao="F")

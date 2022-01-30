@@ -6,7 +6,7 @@
 #' @param d Número de Componentes
 #' @return Valor do Test H
 #'
-#' @importFrom stats qf pf
+#' @importFrom stats qf 
 #' @keywords internal
 teste.h <- function(u, d){
   u <- u[!is.na(u)]

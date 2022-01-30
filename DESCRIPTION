@@ -1,22 +1,17 @@
-Package: ElastH
+Package: ElastK
 Type: Package
-Title: Replicar metodologia de SPE/MF para calculo de elasticidade de receita
-Imports: dlm
+Title: Funcoes para calcular elasticidades dos grupos de receita contra o hiato
+    do pib
+Imports: KFAS
+Depends: KFAS
 Suggests: testthat
-Version: 0.3.2
-Date: 2017-05-30
-Authors@R: person("Caio", "Figueiredo", email="caio.figueiredo@fazenda.gov.br", role=c("aut", "cre"))
-Description: O pacote desponibiliza funções para estimar modelos de componentes 
-  não observados e determinar intervenções automaticamente. Com especial
-  atenção para a replicação dos modelos utilizados na metodologia de calculo
-  do resultado estrutural da SPE/MF.
-  The package provides simple ways to estimates general unobserved components models
-  and automatically detects intervenctions. It is specially useful to
-  replicate Brazilian Ministry of Finance methodology to estimate income-output gap
-  elasticities.
+Version: 0.4
+Date: 2017-03-23
+Author: Caio Figueiredo
+Maintainer: Caio Figueiredo <caio.figueiredo@fazenda.gov.br>
+Description: Funcoes para calcular elasticidades dos grupos de receita contra o
+    hiato do pib.
 License: GPL
 RoxygenNote: 6.0.1
 Encoding: UTF-8
 Language: pt_BR
-NeedsCompilation: no
-Packaged: 2017-04-26 01:19:21 UTC; caio

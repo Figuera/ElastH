@@ -4,7 +4,6 @@
 #' 
 #' @param u Matriz de resíduos
 #' @return Valor do teste de normalidade
-#' @importFrom stats pchisq
 #' @keywords internal
 teste.normalidade <- function(u) {
   u <- u[!is.na(u)]

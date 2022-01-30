@@ -4,7 +4,7 @@ modelo <- modelar(Exemplo$y, Exemplo$dlm, estrutura=list(p=3, loglike=Exemplo$lo
 
 test_that("Função deve retornar valores no formato correto", {
             expect_equal(class(modelo), "mee")
-            expect_equal(length(modelo), 15)
+            expect_equal(length(modelo), 14)
         })
 
 test_that("Função deve retornar modelo correto", {
@@ -15,9 +15,9 @@ test_that("Função deve retornar valores corretos", {
             expect_equal(modelo$y,      Exemplo$y)
         })
 
-#test_that("Função deve retornar filtros corretos", {
-            #expect_equal(modelo$f,      Exemplo$f)
-        #})
+test_that("Função deve retornar filtros corretos", {
+            expect_equal(modelo$f,      Exemplo$f)
+        })
 
 test_that("Função deve retornar componentes corretos", {
             expect_equal(modelo$comp,   Exemplo$comp)

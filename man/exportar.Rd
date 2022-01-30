@@ -7,24 +7,24 @@
 exportar(resultado)
 }
 \arguments{
-\item{resultado}{Lista resultante da função \code{\link{calcular.elasticidades}} ou
-ou da função \code{\link{decompor.todos}} com um conjunto de elasticidades calculadas.}
+\item{resultado}{Lista resultante da função \code{\link{calcularElasticidades}} com o conjunto completo de elasticidades calculadas}
 }
 \value{
-Data frame no formato correto para exportação para o Excel.
+Data frame no formato correto para exportação para o Excel. Em sistemas Windows o data.frame é copiado também
+para o clipboard, possibilitando a colagem das informações no Excel com um simples Ctrl-V.
 }
 \description{
-Função que formata os dados para um padrão de exportação.
+Função que formato ao dados para um padrão de exportação.#'
 }
 \examples{
 \dontrun{data(Exemplo)}
-\donttest{resultado <- calcular.elasticidades(Exemplo$receitas, Exemplo$Hpib, Exemplo$Hpet, fim=c(2015,4))}
+\donttest{resultado <- calcularElasticidades(Exemplo$receitas, Exemplo$Hpib, Exemplo$Hpet, fim=c(2015,4))}
 
 \donttest{resultado.exportacao <- exportar(resultado)}
 \donttest{write.csv2(resultado.exportacao, "/tmp/dados.csv")} #Escreve resultados em arquivo CSV.
 }
 \seealso{
-\code{\link{decompor.todos}}
-\code{\link{calcular.elasticidades}}
+\code{\link{todas.dlms}}
+\code{\link{calcularElasticidades}}
 \code{\link{Exemplo}}
 }
