@@ -21,10 +21,6 @@
 #' sazonalidade. Ver irregular para valores possíveis.
 #' @param regres String definidora da variância do resíduo da equação dos
 #' coeficientes. Ver irregular para valores possíveis.
-#' @param comeco Período inicial.
-#' @param fim Período final.
-#' @param freq Frequência da série de tempo. Padrão é a frequência se y. Se y
-#' não for uma série de tempo é necessário informar variável manualmente.
 #' @param init Parâmetros iniciais para o processo de otimização (Deixar o
 #' padrão).
 #' @param interv.b TRUE (Padrão) ou F. Define se as intervenções serão
@@ -45,11 +41,11 @@
 #'     \item \code{h}: Teste de homocedasticidade dos resíduos
 #'     \item \code{nt}: Teste de normalidade dos resíduos
 #'     \item \code{aic}: Valor AIC da função de verossimilhança usada para
-#'     estimar modelo.}
+#'     estimar model.}
 #'
 #' @details
 #'
-#' O modelo linear dinâmico usado neste pacote tem a seguinte estrutura:
+#' O model linear dinâmico usado neste pacote tem a seguinte estrutura:
 #'
 #' \deqn{y_t = \mu_t + \beta_t \cdot{X_t} + \gamma_t + \varepsilon_t}
 #' \deqn{\mu_t = \mu_{t-1} + \nu_{t-1} + \xi_t}
@@ -102,24 +98,25 @@
 #' \donttest{ decomposicao <- decompor(seriey) } #Decomposição sem variável independente
 #'
 #' seriex <- ts(runif(76), start=1997, end=c(2015,4), frequency=4)
-#' \donttest{ modelo <- decompor(seriey, seriex) } #Decomposição e estimação de coeficente
+#' \donttest{ model <- decompor(seriey, seriex) } #Decomposição e estimação de coeficente
 #' 
 #' #Decomposição e estimação com nível e inclinacao fixos e sem sazonalidade
-#' \donttest{ modelo2 <- decompor(seriey, seriex, nivel="F", inclinacao="F", sazon="N") }
+#' \donttest{ model2 <- decompor(seriey, seriex, nivel="F", inclinacao="F", sazon="N") }
 #' #Decomposição e estimação com coeficente constante
-#' \donttest{ modelo3 <- decompor(seriey, seriex, regres="F") }
+#' \donttest{ model3 <- decompor(seriey, seriex, regres="F") }
 #' #Decomposição e estimação usando apenas um subconjunto dos dados
-#' \donttest{ modelo4 <- decompor(seriey, seriex, comeco=2000, fim=2010) }
+#' \donttest{ model4 <- decompor(seriey, seriex, comeco=2000, fim=2010) }
 #' #Decomposição e estimação sem a detecção de intervenções
-#' \donttest{ modelo5 <- decompor(seriey, seriex, interv.b=F) }
-decompose <- function(formula, data, irregular  = NA) {
+#' \donttest{ model5 <- decompor(seriey, seriex, interv.b=F) }
+decompose <- function(formula, data, irregular  = NA, a1 = list(a1 = 0, P1 = 0),
+  init = c(level = -1, slope = -1.5, seas = -2, irregular =-0.5, regres = -8), ...) {
   # Retrieve dependent variable
   y <- ts(data[, all.vars(formula)[1], drop = T], start=start(data), frequency = frequency(data))
 
   # Retrieve other terms
   terms <- attr(terms(formula), "term.labels")
 
-  # Fundamentos para criação de modelo espaço-estado
+  # Fundamentos para criação de model espaço-estadoActually it’s Italy that is alarmingly low (comparatively speaking). I’d like to know the reasons why it’s like that
   # Note: If component is missing it will be ignored
   variances <- list(
     irregular = irregular,
@@ -127,8 +124,6 @@ decompose <- function(formula, data, irregular  = NA) {
     slope = get_variance("slope", terms),
     seas  = get_variance("seas",  terms))
 
-  init <- c(level = -1, slope = -1.5, seas = -2, irregular =-0.5)
-  init <- init[ is.na( variances[names(init) ]) ] # If Variance of component is not given estimate it
 
   # Finding regression components
   # Ignoring state components
@@ -139,26 +134,28 @@ decompose <- function(formula, data, irregular  = NA) {
     X                 <- as.data.frame(data[, regression_terms, drop = F])
 
     # Set X Variances
-    var_regres        <- lapply(terms, get_variance, terms)
-    names(var_regres) <- rep("regres", length(var_regres))
+    var_regres        <- lapply(regression_terms, get_variance, terms)
+    names(var_regres) <- regression_terms
     variances         <- c(variances, var_regres)
-
-    # Set X initial parameters for variance optimization
-    xinit <- rep(-8, ncol(X))[is.na(var_regres)]
-    names(xinit) <- rep("regres", ncol(X))
-    init <- c(init, xinit)
   } else {
     X <- NULL
   }
 
+  init <- init[names(variances)[is.na(variances)]] # If Variance of component is not given estimate it
+  missing_init <- regression_terms[!(regression_terms %in% names(init))] # Check for missing initial values
+  init <- c(init, array(rep(-8, length(missing_init)), dimnames=list(missing_init))) # Set those missing initial values to -8
 
   message("Estimando Variancias...")
   t <- Sys.time()
-  fit <- build_ssm(init, y, X, variances)
+  ssm <- build_ssm(y, X, variances, a1)
+  fit <- fitSSM2(ssm, init, ...)
   message(paste("Variancias Estimadas em", format(Sys.time() - t, digits=3)))
 
-  modelo <- KFAS::KFS(fit$model, smoothing=c("state", "signal", "disturbance"))
-
-  attr(modelo$mod, "hm") <- length(fit$optim.out$par)
-  return(modelo)
-  decompor  }
+  model <- KFAS::KFS(fit$model, smoothing=c("state", "signal", "disturbance"))
+  model$mod$X       <- X
+  model$varpars     <- variances
+  model$a1pars      <- a1
+  model$fit         <- fit$optim.out
+  model$fit$initial <- init
+  return(model)
+}
