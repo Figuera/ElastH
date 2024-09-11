@@ -10,39 +10,39 @@ autocreate_interventions <- function(model) {
   # significantes por estar correlacionada com outra intervenção muito
   # próxima.
   # Antes definir número máximo de interações (para evitar loops infinitos)
-  for(i in 1:10) {
+  for (i in 1:10) {
     # new_interventions is a dataframe with the intervenctions as regression vectors
     X     <- as.data.frame(cbind(model$mod$X, new_interventions)) # Add interventions to regression dataframe
 
     message("Criando intervencoes...")
     ssm       <- build_ssm(y, X, variances = model$varpars, a1 = model$a1pars)
-    ssm       <- update_fit(model$fit$par,ssm)
-    new_model <- KFAS::KFS(ssm, smoothing=c("state", "signal", "disturbance"))
+    ssm       <- update_fit(model$fit$par, ssm)
+    new_model <- KFAS::KFS(ssm, smoothing = c("state", "signal", "disturbance"))
 
     t <- Sys.time()
     message("Avaliando Intervencoes")
     n_old_intervs <- sum(grepl("(I.principal|I.nivel|I.incli)\\d*", colnames(model$mod$X)))
     tests <- test_intervs(new_model)
-    tests <- tests[(n_old_intervs+1):nrow(tests), ]
+    tests <- tests[(n_old_intervs + 1):nrow(tests), ]
 
     if(all(tests$pvalue <= 0.05)) {
       break
     } else {
       rejectionBool <- tests$pvalue > 0.05
-      rejected      <- tests[rejectionBool, , drop=F]
-      validated     <- new_interventions[, !rejectionBool, drop=F]
+      rejected      <- tests[rejectionBool, , drop = F]
+      validated     <- new_interventions[, !rejectionBool, drop = F]
 
-      if(nrow(rejected) == 0) {
+      if (nrow(rejected) == 0) {
         break
       } else {
         second_chance <- apply(rejected, 1, check_neighborhood, rejected, y)
 
-        if(sum(second_chance) == 0) {
+        if (sum(second_chance) == 0) {
           X   <- as.data.frame(cbind(model$mod$X, validated))
           ssm <- build_ssm(y, X, variances = model$varpars, a1 = model$a1pars)
           break
         } else {
-          new_interventions <- cbind(validated, new_interventions[, rejectionBool, drop=F][, second_chance, drop=F])
+          new_interventions <- cbind(validated, new_interventions[, rejectionBool, drop = F][, second_chance, drop = F])
           # Aqui termina o loop repeat iniciado acima. Porém não é lançado o break
           # de forma que mais uma interação é realizada.
         }
@@ -51,7 +51,14 @@ autocreate_interventions <- function(model) {
   }
 
   fit       <- fitSSM2(ssm, model$fit$par)
-  new_model <- KFAS::KFS(fit$model, smoothing=c("state", "signal", "disturbance"))
+  new_model <- KFAS::KFS(fit$model, smoothing = c("state", "signal", "disturbance"))
+
+  new_model$mod$X       <- X
+  new_model$varpars     <- model$varpars
+  new_model$a1pars      <- model$a1pars
+  model$old_fit         <- model$fit
+  model$fit             <- fit$optim.out
+  model$fit$initial     <- fit$initial
 
   return(new_model)
 }

@@ -6,5 +6,5 @@ R2.KFS <- function(kfs) {
   y             <- kfs$mod$y[!diffuse_phase]
   SSR           <- sum((v - mean(v))^2)
   SST           <- sum((y - mean(y))^2)
-  return(1 - SSR/SST)
+  return(1 - SSR / SST)
 }

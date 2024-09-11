@@ -7,8 +7,8 @@ get_intervention_position <- function(residue, scs, lim) {
   # Much of the work is to assure that neighbooring errors are not detected at the same time
   j <- 1
   n <- length(sc)
-  while(j <= n) {
-    if(abs(sc[j]) > lim[[residue]]) {
+  while (j <= n) {
+    if (abs(sc[j]) > lim[[residue]]) {
       X <- rep(0, n)
 
       if (residue == "principal") {
@@ -16,14 +16,14 @@ get_intervention_position <- function(residue, scs, lim) {
       } else {
         # k é igual ao número de períodos que, a partir do ponto j, os residuos são maiores (ou menores)
         # que o limite e não mudam de sinal.
-        k <- (-1)^(sc[j]<0) * sc[j:n] > lim[[residue]]
-        k <- if(which.min(k) > 1) {
-          which.min(k)-1 
+        k <- (-1) ^ (sc[j] < 0) * sc[j:n] > lim[[residue]]
+        k <- if (which.min(k) > 1) {
+          which.min(k) - 1
         } else {
           n
         }
 
-        pos    <- j - 1 + which.max(abs(sc[j:(j+k)]))
+        pos    <- j - 1 + which.max(abs(sc[j:(j + k)]))
         X[pos] <- 1
         j      <- j + k
       }

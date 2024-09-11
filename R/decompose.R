@@ -109,21 +109,20 @@
 #' #Decomposição e estimação sem a detecção de intervenções
 #' \donttest{ model5 <- decompor(seriey, seriex, interv.b=F) }
 decompose <- function(formula, data, irregular  = NA, a1 = list(a1 = 0, P1 = 0),
-  init = c(level = -1, slope = -1.5, seas = -2, irregular =-0.5, regres = -8), ...) {
+  init = c(level = -1, slope = -1.5, seas = -2, irregular = -0.5, regres = -8), ...) {
   # Retrieve dependent variable
-  y <- ts(data[, all.vars(formula)[1], drop = T], start=start(data), frequency = frequency(data))
+  y <- ts(data[, all.vars(formula)[1], drop = T], start = start(data), frequency = frequency(data))
 
   # Retrieve other terms
   terms <- attr(terms(formula), "term.labels")
 
-  # Fundamentos para criação de model espaço-estadoActually it’s Italy that is alarmingly low (comparatively speaking). I’d like to know the reasons why it’s like that
+  # Fundamentals for State Space Models creation
   # Note: If component is missing it will be ignored
   variances <- list(
     irregular = irregular,
     level = get_variance("level", terms),
     slope = get_variance("slope", terms),
     seas  = get_variance("seas",  terms))
-
 
   # Finding regression components
   # Ignoring state components
@@ -141,15 +140,18 @@ decompose <- function(formula, data, irregular  = NA, a1 = list(a1 = 0, P1 = 0),
     X <- NULL
   }
 
-  init <- init[names(variances)[is.na(variances)]] # If Variance of component is not given estimate it
-  missing_init <- regression_terms[!(regression_terms %in% names(init))] # Check for missing initial values
-  init <- c(init, array(rep(-8, length(missing_init)), dimnames=list(missing_init))) # Set those missing initial values to -8
+  # If Variance of component is not given estimate it
+  init <- init[names(variances)[is.na(variances)]]
+  # Check for missing initial values
+  missing_init <- regression_terms[!(regression_terms %in% names(init))]
+  # Set those missing initial values to -8
+  init <- c(init, array(rep(-8, length(missing_init)), dimnames = list(missing_init)))
 
   message("Estimando Variancias...")
   t <- Sys.time()
   ssm <- build_ssm(y, X, variances, a1)
   fit <- fitSSM2(ssm, init, ...)
-  message(paste("Variancias Estimadas em", format(Sys.time() - t, digits=3)))
+  message(paste("Variancias Estimadas em", format(Sys.time() - t, digits = 3)))
 
   model <- KFAS::KFS(fit$model, smoothing=c("state", "signal", "disturbance"))
   model$mod$X       <- X
